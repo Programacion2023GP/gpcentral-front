@@ -26,7 +26,7 @@ export const ColComponent: React.FC<ColProps> = ({
   return (
     <div
       id={id}
-      className={`col sm-${responsive.sm} md-${responsive.md} lg-${responsive.lg} xl-${responsive.xl} xl2-${responsive["2xl"]} ${autoPadding && 'pl-4 pr-4'}  `}
+      className={`col sm-${responsive.sm} md-${responsive.md} lg-${responsive.lg} xl-${responsive.xl} xl2-${responsive["2xl"]} ${autoPadding && 'pl-4 pr-4'} `}
       {...props}
     >
       {children}

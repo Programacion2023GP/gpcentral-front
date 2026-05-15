@@ -39,6 +39,9 @@ import {
    FiList,
 } from "react-icons/fi";
 import { RiFileExcelFill, RiFileTextLine } from "react-icons/ri";
+import Tooltip from "../toltip/Toltip";
+import CustomButton from "../button/custombuttom";
+import icons from "./../../../constant/icons";
 
 // ==================== DEEP FIELD UTILITY ====================
 /**
@@ -189,6 +192,7 @@ export interface PropsTable<T extends object> {
    defaultTheme?: Theme;
    defaultDensity?: DensityMode;
    storageKey?: string;
+   refreshData?: () => void;
 }
 
 // ==================== DESIGN TOKENS ====================
@@ -363,6 +367,7 @@ const CustomTableInner = <T extends object>(
       defaultTheme = "light",
       defaultDensity = "comfortable",
       storageKey,
+      refreshData,
    }: PropsTable<T>,
    ref: React.Ref<CustomTableHandle<T>>,
 ) => {
@@ -3249,6 +3254,12 @@ const CustomTableInner = <T extends object>(
                   gap: 8,
                   flexWrap: "wrap",
                }}>
+               {/* Boton de Refrescar */}
+               <Tooltip content="Refrescar Tabla">
+                  <CustomButton onClick={refreshData}>
+                     <icons.Lu.LuRefreshCw className="w-4 h-4" />
+                  </CustomButton>
+               </Tooltip>
                {/* Search */}
                <div
                   style={{
@@ -3315,7 +3326,6 @@ const CustomTableInner = <T extends object>(
                      )}
                   </AnimatePresence>
                </div>
-
                <div
                   style={{
                      display: "flex",

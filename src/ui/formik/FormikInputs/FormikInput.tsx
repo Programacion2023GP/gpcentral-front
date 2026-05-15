@@ -40,15 +40,24 @@ const DS = {
    shadowMd: "0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05)",
    shadowLg: "0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06)",
    shadowDropdown: "0 12px 40px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.07)",
-   transition: "all 0.18s cubic-bezier(0.4,0,0.2,1)"
+   transition: "all 0.18s cubic-bezier(0.4,0,0.2,1)",
 };
 
 /* ------------------------------------------------------------------
    TIPOS
 ------------------------------------------------------------------ */
-export type HandleModifiedFn = (values: Record<string, any>, setFieldValue: (name: string, value: any) => void) => void | Promise<void>;
+export type HandleModifiedFn = (
+   values: Record<string, any>,
+   setFieldValue: (name: string, value: any) => void,
+) => void | Promise<void>;
 
-type ResponsiveProps = { sm?: number; md?: number; lg?: number; xl?: number; "2xl"?: number };
+type ResponsiveProps = {
+   sm?: number;
+   md?: number;
+   lg?: number;
+   xl?: number;
+   "2xl"?: number;
+};
 
 /* ------------------------------------------------------------------
    COMPONENTES INTERNOS REUTILIZABLES
@@ -68,46 +77,76 @@ const FieldError = ({ error }: { error: string | null }) =>
             padding: "6px 10px",
             background: DS.errorBg,
             border: `1px solid ${DS.errorBorder}`,
-            borderRadius: DS.r6
-         }}
-      >
-         <div style={{ width: 5, height: 5, borderRadius: "50%", background: DS.errorText }} />
-         <span style={{ fontSize: "12px", fontWeight: 500, color: DS.errorText }}>{error}</span>
+            borderRadius: DS.r6,
+         }}>
+         <div
+            style={{
+               width: 5,
+               height: 5,
+               borderRadius: "50%",
+               background: DS.errorText,
+            }}
+         />
+         <span
+            style={{ fontSize: "12px", fontWeight: 500, color: DS.errorText }}>
+            {error}
+         </span>
       </motion.div>
    ) : null;
 
-const DisabledField = ({ label, value, error, multiline = false }: { label: string; value: any; error: string | null; multiline?: boolean }) => (
-   <div style={{ position: "relative", marginBottom: "20px" }}>
-      <label
-         style={{
-            position: "absolute",
-            left: "12px",
-            top: "-9px",
-            fontSize: "11px",
-            fontWeight: 600,
-            color: DS.text3,
-            background: DS.surface,
-            padding: "0 4px",
-            letterSpacing: "0.04em",
-            textTransform: "uppercase",
-            zIndex: 2
-         }}
-      >
-         {label}
-      </label>
-      <div
-         style={{
-            border: `1.5px solid ${DS.border}`,
-            borderRadius: DS.r8,
-            background: DS.surface,
-            padding: multiline ? "16px 12px 10px" : "13px 12px",
-            minHeight: multiline ? "80px" : "auto"
-         }}
-      >
-         <span style={{ fontSize: "14px", color: DS.text2, whiteSpace: multiline ? "pre-wrap" : "normal" }}>{value ?? "—"}</span>
+const DisabledField = ({
+   label,
+   value,
+   error,
+   multiline = false,
+   responsive,
+   padding,
+}: {
+   label: string;
+   value: any;
+   error: string | null;
+   multiline?: boolean;
+   responsive?: ResponsiveProps;
+   padding?: boolean;
+}) => (
+   <ColComponent responsive={responsive} autoPadding={padding}>
+      <div style={{ position: "relative", marginBottom: "20px" }}>
+         <label
+            style={{
+               position: "absolute",
+               left: "12px",
+               top: "-9px",
+               fontSize: "11px",
+               fontWeight: 600,
+               color: DS.text3,
+               background: DS.surface,
+               padding: "0 4px",
+               letterSpacing: "0.04em",
+               textTransform: "uppercase",
+               zIndex: 2,
+            }}>
+            {label}
+         </label>
+         <div
+            style={{
+               border: `1.5px solid ${DS.border}`,
+               borderRadius: DS.r8,
+               background: DS.surface,
+               padding: multiline ? "16px 12px 10px" : "13px 12px",
+               minHeight: multiline ? "80px" : "50px",
+            }}>
+            <span
+               style={{
+                  fontSize: "14px",
+                  color: DS.text2,
+                  whiteSpace: multiline ? "pre-wrap" : "normal",
+               }}>
+               {value ?? "—"}
+            </span>
+         </div>
+         <FieldError error={error} />
       </div>
-      <FieldError error={error} />
-   </div>
+   </ColComponent>
 );
 
 /* ------------------------------------------------------------------
@@ -116,7 +155,16 @@ const DisabledField = ({ label, value, error, multiline = false }: { label: stri
 interface FormikInputProps {
    name: string;
    label: string;
-   type?: "text" | "email" | "password" | "number" | "tel" | "url" | "date" | "datetime-local" | "time";
+   type?:
+      | "text"
+      | "email"
+      | "password"
+      | "number"
+      | "tel"
+      | "url"
+      | "date"
+      | "datetime-local"
+      | "time";
    disabled?: boolean;
    readOnly?: boolean;
    required?: boolean;
@@ -153,7 +201,7 @@ export function FormikInput(props: FormikInputProps) {
       onChange,
       handleModified,
       responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
-      padding = true
+      padding = true,
    } = props;
 
    const formik = useFormikContext<Record<string, any>>();
@@ -166,14 +214,18 @@ export function FormikInput(props: FormikInputProps) {
       setLocalValue(value ?? "");
    }, [formik.values, name]);
 
-   const error = formik.touched[name] && formik.errors[name] ? String(formik.errors[name]) : null;
+   const error =
+      formik.touched[name] && formik.errors[name]
+         ? String(formik.errors[name])
+         : null;
    const hasValue = localValue.length > 0;
-   const isActive = hasValue || isFocused || type === "date" || type === "datetime-local";
+   const isActive =
+      hasValue || isFocused || type === "date" || type === "datetime-local";
 
    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value;
-    let processed = mask ? mask(raw) : raw;
-            processed = processed.toUpperCase();
+      let processed = mask ? mask(raw) : raw;
+      processed = processed.toUpperCase();
 
       setLocalValue(processed);
 
@@ -181,7 +233,10 @@ export function FormikInput(props: FormikInputProps) {
          formik.setFieldValue(name, processed);
          onChange?.(processed);
          if (handleModified) {
-            handleModified({ ...formik.values, [name]: processed }, formik.setFieldValue);
+            handleModified(
+               { ...formik.values, [name]: processed },
+               formik.setFieldValue,
+            );
          }
       };
 
@@ -203,7 +258,15 @@ export function FormikInput(props: FormikInputProps) {
    };
 
    if (disabled) {
-      return <DisabledField label={label} value={localValue} error={error} />;
+      return (
+         <DisabledField
+            label={label}
+            value={localValue}
+            error={error}
+            responsive={responsive}
+            padding={padding}
+         />
+      );
    }
 
    return (
@@ -217,18 +280,25 @@ export function FormikInput(props: FormikInputProps) {
                   top: isActive ? "-9px" : "14px",
                   fontSize: isActive ? "11px" : "14px",
                   fontWeight: isActive ? 600 : 400,
-                  color: isActive ? (error ? DS.errorText : isFocused ? DS.accent : DS.text2) : DS.textPlaceholder,
+                  color: isActive
+                     ? error
+                        ? DS.errorText
+                        : isFocused
+                          ? DS.accent
+                          : DS.text2
+                     : DS.textPlaceholder,
                   background: DS.white,
                   padding: "0 4px",
                   pointerEvents: "none",
                   transition: DS.transition,
                   letterSpacing: isActive ? "0.04em" : "0",
                   textTransform: isActive ? "uppercase" : "none",
-                  zIndex: 2
-               }}
-            >
+                  zIndex: 2,
+               }}>
                {label}
-               {required && <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>}
+               {required && (
+                  <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>
+               )}
             </label>
 
             <div
@@ -238,10 +308,13 @@ export function FormikInput(props: FormikInputProps) {
                   border: `1.5px solid ${error ? DS.borderError : isFocused ? DS.borderFocus : DS.border}`,
                   borderRadius: DS.r8,
                   background: DS.white,
-                  boxShadow: isFocused ? (error ? "0 0 0 3px rgba(220,38,38,0.10)" : DS.accentGlow) : "none",
-                  transition: DS.transition
-               }}
-            >
+                  boxShadow: isFocused
+                     ? error
+                        ? "0 0 0 3px rgba(220,38,38,0.10)"
+                        : DS.accentGlow
+                     : "none",
+                  transition: DS.transition,
+               }}>
                {leftIcon && <span style={{ marginLeft: 12 }}>{leftIcon}</span>}
                <input
                   id={name}
@@ -263,11 +336,20 @@ export function FormikInput(props: FormikInputProps) {
                      outline: "none",
                      fontSize: "14px",
                      color: DS.text1,
-                     fontFamily: "inherit"
+                     fontFamily: "inherit",
                   }}
                />
                {rightIcon && (
-                  <button type="button" onClick={onRightIconClick} style={{ marginRight: 12, background: "none", border: "none", cursor: "pointer", color: DS.text3 }}>
+                  <button
+                     type="button"
+                     onClick={onRightIconClick}
+                     style={{
+                        marginRight: 12,
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: DS.text3,
+                     }}>
                      {rightIcon}
                   </button>
                )}
@@ -305,7 +387,7 @@ export function FormikTextArea(props: FormikTextAreaProps) {
       placeholder = " ",
       debounceMs,
       responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
-      padding = true
+      padding = true,
    } = props;
 
    const formik = useFormikContext<Record<string, any>>();
@@ -318,13 +400,16 @@ export function FormikTextArea(props: FormikTextAreaProps) {
       setLocalValue(value ?? "");
    }, [formik.values, name]);
 
-   const error = formik.touched[name] && formik.errors[name] ? String(formik.errors[name]) : null;
+   const error =
+      formik.touched[name] && formik.errors[name]
+         ? String(formik.errors[name])
+         : null;
    const hasValue = localValue.length > 0;
    const isActive = hasValue || isFocused;
 
    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       let newValue = e.target.value;
-            newValue = newValue.toUpperCase();
+      newValue = newValue.toUpperCase();
 
       setLocalValue(newValue);
       if (debounceMs) {
@@ -343,7 +428,16 @@ export function FormikTextArea(props: FormikTextAreaProps) {
    };
 
    if (disabled) {
-      return <DisabledField label={label} value={localValue} error={error} multiline />;
+      return (
+         <DisabledField
+            label={label}
+            value={localValue}
+            error={error}
+            multiline
+            responsive={responsive}
+            padding={padding}
+         />
+      );
    }
 
    return (
@@ -359,29 +453,48 @@ export function FormikTextArea(props: FormikTextAreaProps) {
                        ? `linear-gradient(135deg, ${DS.accent}, #7c3aed, #06b6d4)`
                        : `linear-gradient(135deg, ${DS.border}, ${DS.border})`,
                   transition: DS.transition,
-                  boxShadow: isFocused ? (error ? "0 4px 20px rgba(220,38,38,0.18)" : "0 4px 24px rgba(99,102,241,0.18)") : "0 2px 8px rgba(0,0,0,0.06)"
-               }}
-            >
-               <div style={{ borderRadius: "13px", background: DS.white, overflow: "hidden" }}>
+                  boxShadow: isFocused
+                     ? error
+                        ? "0 4px 20px rgba(220,38,38,0.18)"
+                        : "0 4px 24px rgba(99,102,241,0.18)"
+                     : "0 2px 8px rgba(0,0,0,0.06)",
+               }}>
+               <div
+                  style={{
+                     borderRadius: "13px",
+                     background: DS.white,
+                     overflow: "hidden",
+                  }}>
                   <label
                      htmlFor={name}
                      style={{
                         position: "absolute",
                         left: "14px",
                         top: isActive ? "8px" : "50%",
-                        transform: isActive ? "translateY(0)" : "translateY(-50%)",
+                        transform: isActive
+                           ? "translateY(0)"
+                           : "translateY(-50%)",
                         fontSize: isActive ? "10px" : "14px",
                         fontWeight: isActive ? 700 : 400,
-                        color: error ? DS.errorText : isFocused ? DS.accent : isActive ? DS.text2 : DS.textPlaceholder,
+                        color: error
+                           ? DS.errorText
+                           : isFocused
+                             ? DS.accent
+                             : isActive
+                               ? DS.text2
+                               : DS.textPlaceholder,
                         letterSpacing: isActive ? "0.07em" : "0",
                         textTransform: isActive ? "uppercase" : "none",
                         pointerEvents: "none",
                         transition: "all 0.22s cubic-bezier(0.4,0,0.2,1)",
-                        zIndex: 2
-                     }}
-                  >
+                        zIndex: 2,
+                     }}>
                      {label}
-                     {required && <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>}
+                     {required && (
+                        <span style={{ color: DS.errorText, marginLeft: 2 }}>
+                           *
+                        </span>
+                     )}
                   </label>
                   <textarea
                      id={name}
@@ -403,14 +516,27 @@ export function FormikTextArea(props: FormikTextAreaProps) {
                         lineHeight: "1.6",
                         color: DS.text1,
                         fontFamily: "inherit",
-                        caretColor: error ? DS.errorText : DS.accent
+                        caretColor: error ? DS.errorText : DS.accent,
                      }}
                   />
                </div>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "6px" }}>
+            <div
+               style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginTop: "6px",
+               }}>
                <FieldError error={error} />
-               {hasValue && <span style={{ fontSize: "11px", color: isFocused ? DS.accent : DS.text3 }}>{localValue.length} caracteres</span>}
+               {hasValue && (
+                  <span
+                     style={{
+                        fontSize: "11px",
+                        color: isFocused ? DS.accent : DS.text3,
+                     }}>
+                     {localValue.length} caracteres
+                  </span>
+               )}
             </div>
          </div>
       </ColComponent>
@@ -430,17 +556,35 @@ interface FormikPasswordProps {
 }
 
 export function FormikPassword(props: FormikPasswordProps) {
-   const { name, label, disabled = false, required = false, responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 }, padding = true } = props;
+   const {
+      name,
+      label,
+      disabled = false,
+      required = false,
+      responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
+      padding = true,
+   } = props;
    const formik = useFormikContext<Record<string, any>>();
    const [showPassword, setShowPassword] = useState(false);
    const [isFocused, setIsFocused] = useState(false);
    const value = (formik.values?.[name] as string) ?? "";
    const hasValue = value.length > 0;
    const isActive = hasValue || isFocused;
-   const error = formik.touched[name] && formik.errors[name] ? String(formik.errors[name]) : null;
+   const error =
+      formik.touched[name] && formik.errors[name]
+         ? String(formik.errors[name])
+         : null;
 
    if (disabled) {
-      return <DisabledField label={label} value={value} error={error} />;
+      return (
+         <DisabledField
+            label={label}
+            value={value}
+            error={error}
+            responsive={responsive}
+            padding={padding}
+         />
+      );
    }
 
    return (
@@ -454,17 +598,24 @@ export function FormikPassword(props: FormikPasswordProps) {
                   top: isActive ? "-9px" : "14px",
                   fontSize: isActive ? "11px" : "14px",
                   fontWeight: isActive ? 600 : 400,
-                  color: isActive ? (error ? DS.errorText : isFocused ? DS.accent : DS.text2) : DS.textPlaceholder,
+                  color: isActive
+                     ? error
+                        ? DS.errorText
+                        : isFocused
+                          ? DS.accent
+                          : DS.text2
+                     : DS.textPlaceholder,
                   background: DS.white,
                   padding: "0 4px",
                   transition: DS.transition,
                   letterSpacing: isActive ? "0.04em" : "0",
                   textTransform: isActive ? "uppercase" : "none",
-                  zIndex: 2
-               }}
-            >
+                  zIndex: 2,
+               }}>
                {label}
-               {required && <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>}
+               {required && (
+                  <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>
+               )}
             </label>
             <div
                style={{
@@ -474,9 +625,8 @@ export function FormikPassword(props: FormikPasswordProps) {
                   borderRadius: DS.r8,
                   background: DS.white,
                   boxShadow: isFocused ? DS.accentGlow : "none",
-                  transition: DS.transition
-               }}
-            >
+                  transition: DS.transition,
+               }}>
                <input
                   type={showPassword ? "text" : "password"}
                   id={name}
@@ -494,15 +644,24 @@ export function FormikPassword(props: FormikPasswordProps) {
                      border: "none",
                      outline: "none",
                      fontSize: "14px",
-                     color: DS.text1
+                     color: DS.text1,
                   }}
                />
                <button
                   type="button"
                   onClick={() => setShowPassword((p) => !p)}
-                  style={{ padding: "0 12px", background: "none", border: "none", cursor: "pointer", color: DS.text3 }}
-               >
-                  {showPassword ? <IoMdEye size={18} /> : <IoIosEyeOff size={18} />}
+                  style={{
+                     padding: "0 12px",
+                     background: "none",
+                     border: "none",
+                     cursor: "pointer",
+                     color: DS.text3,
+                  }}>
+                  {showPassword ? (
+                     <IoMdEye size={18} />
+                  ) : (
+                     <IoIosEyeOff size={18} />
+                  )}
                </button>
             </div>
             <FieldError error={error} />
@@ -540,13 +699,16 @@ export function FormikNumber(props: FormikNumberProps) {
       disabled = false,
       required = false,
       responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
-      padding = true
+      padding = true,
    } = props;
 
    const formik = useFormikContext<Record<string, any>>();
    const [isFocused, setIsFocused] = useState(false);
    const value = (formik.values?.[name] as number) ?? 0;
-   const error = formik.touched[name] && formik.errors[name] ? String(formik.errors[name]) : null;
+   const error =
+      formik.touched[name] && formik.errors[name]
+         ? String(formik.errors[name])
+         : null;
 
    const toRoman = (num: number): string => {
       const map: [string, number][] = [
@@ -562,7 +724,7 @@ export function FormikNumber(props: FormikNumberProps) {
          ["IX", 9],
          ["V", 5],
          ["IV", 4],
-         ["I", 1]
+         ["I", 1],
       ];
       let roman = "";
       for (const [letter, val] of map) {
@@ -585,7 +747,15 @@ export function FormikNumber(props: FormikNumberProps) {
    };
 
    if (disabled) {
-      return <DisabledField label={label} value={formatDisplay(value)} error={error} />;
+      return (
+         <DisabledField
+            label={label}
+            value={formatDisplay(value)}
+            error={error}
+            responsive={responsive}
+            padding={padding}
+         />
+      );
    }
 
    return (
@@ -598,16 +768,21 @@ export function FormikNumber(props: FormikNumberProps) {
                   top: "-9px",
                   fontSize: "11px",
                   fontWeight: 600,
-                  color: error ? DS.errorText : isFocused ? DS.accent : DS.text2,
+                  color: error
+                     ? DS.errorText
+                     : isFocused
+                       ? DS.accent
+                       : DS.text2,
                   background: DS.white,
                   padding: "0 4px",
                   letterSpacing: "0.04em",
                   textTransform: "uppercase",
-                  zIndex: 2
-               }}
-            >
+                  zIndex: 2,
+               }}>
                {label}
-               {required && <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>}
+               {required && (
+                  <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>
+               )}
             </label>
             <div
                style={{
@@ -616,9 +791,8 @@ export function FormikNumber(props: FormikNumberProps) {
                   border: `1.5px solid ${error ? DS.borderError : DS.border}`,
                   borderRadius: DS.r8,
                   background: DS.white,
-                  overflow: "hidden"
-               }}
-            >
+                  overflow: "hidden",
+               }}>
                <button
                   type="button"
                   onClick={() => setValue(value - step)}
@@ -631,9 +805,8 @@ export function FormikNumber(props: FormikNumberProps) {
                      background: DS.surface,
                      border: "none",
                      borderRight: `1px solid ${DS.border}`,
-                     cursor: "pointer"
-                  }}
-               >
+                     cursor: "pointer",
+                  }}>
                   <FaMinus size={10} />
                </button>
                <input
@@ -654,7 +827,7 @@ export function FormikNumber(props: FormikNumberProps) {
                      outline: "none",
                      fontSize: "14px",
                      fontWeight: 600,
-                     color: DS.text1
+                     color: DS.text1,
                   }}
                />
                <button
@@ -669,9 +842,8 @@ export function FormikNumber(props: FormikNumberProps) {
                      background: DS.surface,
                      border: "none",
                      borderLeft: `1px solid ${DS.border}`,
-                     cursor: "pointer"
-                  }}
-               >
+                     cursor: "pointer",
+                  }}>
                   <FaPlus size={10} />
                </button>
             </div>
@@ -694,10 +866,20 @@ interface FormikCheckboxProps {
 }
 
 export function FormikCheckbox(props: FormikCheckboxProps) {
-   const { name, label, disabled = false, required = false, responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 }, padding = true } = props;
+   const {
+      name,
+      label,
+      disabled = false,
+      required = false,
+      responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
+      padding = true,
+   } = props;
    const formik = useFormikContext<Record<string, any>>();
    const value = !!formik.values?.[name];
-   const error = formik.touched[name] && formik.errors[name] ? String(formik.errors[name]) : null;
+   const error =
+      formik.touched[name] && formik.errors[name]
+         ? String(formik.errors[name])
+         : null;
 
    return (
       <ColComponent responsive={responsive} autoPadding={padding}>
@@ -708,10 +890,9 @@ export function FormikCheckbox(props: FormikCheckboxProps) {
                gap: "10px",
                marginBottom: "20px",
                opacity: disabled ? 0.5 : 1,
-               cursor: disabled ? "not-allowed" : "pointer"
+               cursor: disabled ? "not-allowed" : "pointer",
             }}
-            onClick={() => !disabled && formik.setFieldValue(name, !value)}
-         >
+            onClick={() => !disabled && formik.setFieldValue(name, !value)}>
             <div
                style={{
                   width: 20,
@@ -721,18 +902,31 @@ export function FormikCheckbox(props: FormikCheckboxProps) {
                   border: `2px solid ${error ? DS.borderError : value ? DS.accent : DS.border}`,
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center"
-               }}
-            >
+                  justifyContent: "center",
+               }}>
                {value && (
-                  <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3}>
+                  <svg
+                     width={12}
+                     height={12}
+                     viewBox="0 0 24 24"
+                     fill="none"
+                     stroke="white"
+                     strokeWidth={3}>
                      <polyline points="20 6 9 17 4 12" />
                   </svg>
                )}
             </div>
-            <label style={{ fontSize: "14px", fontWeight: 500, color: value ? DS.text1 : DS.text2, userSelect: "none" }}>
+            <label
+               style={{
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  color: value ? DS.text1 : DS.text2,
+                  userSelect: "none",
+               }}>
                {label}
-               {required && <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>}
+               {required && (
+                  <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>
+               )}
             </label>
          </div>
          <FieldError error={error} />
@@ -751,21 +945,48 @@ interface FormikSwitchProps {
 }
 
 export function FormikSwitch(props: FormikSwitchProps) {
-   const { name, label, disabled = false, responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 } } = props;
+   const {
+      name,
+      label,
+      disabled = false,
+      responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
+   } = props;
    const formik = useFormikContext<Record<string, any>>();
    const value = !!formik.values?.[name];
-   const error = formik.touched[name] && formik.errors[name] ? String(formik.errors[name]) : null;
+   const error =
+      formik.touched[name] && formik.errors[name]
+         ? String(formik.errors[name])
+         : null;
 
    return (
       <ColComponent responsive={responsive}>
-         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px", opacity: disabled ? 0.5 : 1 }}>
-            <label style={{ position: "relative", display: "inline-flex", cursor: disabled ? "not-allowed" : "pointer" }}>
+         <div
+            style={{
+               display: "flex",
+               alignItems: "center",
+               gap: "10px",
+               marginBottom: "20px",
+               opacity: disabled ? 0.5 : 1,
+            }}>
+            <label
+               style={{
+                  position: "relative",
+                  display: "inline-flex",
+                  cursor: disabled ? "not-allowed" : "pointer",
+               }}>
                <input
                   type="checkbox"
                   checked={value}
                   disabled={disabled}
-                  onChange={(e) => formik.setFieldValue(name, e.target.checked ? 1 : 0)}
-                  style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
+                  onChange={(e) =>
+                     formik.setFieldValue(name, e.target.checked ? 1 : 0)
+                  }
+                  style={{
+                     position: "absolute",
+                     opacity: 0,
+                     width: 0,
+                     height: 0,
+                  }}
                />
                <div
                   style={{
@@ -774,9 +995,8 @@ export function FormikSwitch(props: FormikSwitchProps) {
                      borderRadius: 100,
                      background: value ? DS.accent : DS.border,
                      transition: DS.transition,
-                     position: "relative"
-                  }}
-               >
+                     position: "relative",
+                  }}>
                   <div
                      style={{
                         position: "absolute",
@@ -786,13 +1006,24 @@ export function FormikSwitch(props: FormikSwitchProps) {
                         height: 18,
                         borderRadius: "50%",
                         background: DS.white,
-                        transition: DS.transition
+                        transition: DS.transition,
                      }}
                   />
                </div>
             </label>
-            <span style={{ fontSize: "14px", fontWeight: 500, color: value ? DS.text1 : DS.text2 }}>{label}</span>
-            {error && <span style={{ fontSize: "12px", color: DS.errorText }}>{error}</span>}
+            <span
+               style={{
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  color: value ? DS.text1 : DS.text2,
+               }}>
+               {label}
+            </span>
+            {error && (
+               <span style={{ fontSize: "12px", color: DS.errorText }}>
+                  {error}
+               </span>
+            )}
          </div>
       </ColComponent>
    );
@@ -823,15 +1054,23 @@ export function FormikRadio<TOption>(props: FormikRadioProps<TOption>) {
       disabled = false,
       required = false,
       responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
-      padding = true
+      padding = true,
    } = props;
    const formik = useFormikContext<Record<string, any>>();
    const value = formik.values?.[name];
-   const error = formik.touched[name] && formik.errors[name] ? String(formik.errors[name]) : null;
+   const error =
+      formik.touched[name] && formik.errors[name]
+         ? String(formik.errors[name])
+         : null;
 
    return (
       <ColComponent responsive={responsive} autoPadding={padding}>
-         <div style={{ position: "relative", marginBottom: "20px", opacity: disabled ? 0.5 : 1 }}>
+         <div
+            style={{
+               position: "relative",
+               marginBottom: "20px",
+               opacity: disabled ? 0.5 : 1,
+            }}>
             <label
                style={{
                   position: "absolute",
@@ -844,20 +1083,20 @@ export function FormikRadio<TOption>(props: FormikRadioProps<TOption>) {
                   padding: "0 4px",
                   letterSpacing: "0.04em",
                   textTransform: "uppercase",
-                  zIndex: 2
-               }}
-            >
+                  zIndex: 2,
+               }}>
                {label}
-               {required && <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>}
+               {required && (
+                  <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>
+               )}
             </label>
             <div
                style={{
                   border: `1.5px solid ${error ? DS.borderError : DS.border}`,
                   borderRadius: DS.r8,
                   padding: "16px 12px 10px",
-                  background: DS.white
-               }}
-            >
+                  background: DS.white,
+               }}>
                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                   {options.map((option) => {
                      const optValue = option[idKey];
@@ -872,27 +1111,49 @@ export function FormikRadio<TOption>(props: FormikRadioProps<TOption>) {
                               padding: "8px 14px",
                               borderRadius: DS.r6,
                               border: `1.5px solid ${isSelected ? (error ? DS.borderError : DS.accent) : DS.border}`,
-                              background: isSelected ? (error ? "rgba(220,38,38,0.06)" : DS.accentLight) : DS.white,
+                              background: isSelected
+                                 ? error
+                                    ? "rgba(220,38,38,0.06)"
+                                    : DS.accentLight
+                                 : DS.white,
                               cursor: disabled ? "not-allowed" : "pointer",
-                              transition: DS.transition
+                              transition: DS.transition,
                            }}
-                           onClick={() => !disabled && formik.setFieldValue(name, optValue)}
-                        >
+                           onClick={() =>
+                              !disabled && formik.setFieldValue(name, optValue)
+                           }>
                            <div
                               style={{
                                  width: 16,
                                  height: 16,
                                  borderRadius: "50%",
                                  border: `2px solid ${isSelected ? (error ? DS.borderError : DS.accent) : DS.border}`,
-                                 background: isSelected ? (error ? DS.borderError : DS.accent) : DS.white,
+                                 background: isSelected
+                                    ? error
+                                       ? DS.borderError
+                                       : DS.accent
+                                    : DS.white,
                                  display: "flex",
                                  alignItems: "center",
-                                 justifyContent: "center"
-                              }}
-                           >
-                              {isSelected && <div style={{ width: 5, height: 5, borderRadius: "50%", background: "white" }} />}
+                                 justifyContent: "center",
+                              }}>
+                              {isSelected && (
+                                 <div
+                                    style={{
+                                       width: 5,
+                                       height: 5,
+                                       borderRadius: "50%",
+                                       background: "white",
+                                    }}
+                                 />
+                              )}
                            </div>
-                           <span style={{ fontSize: "13.5px", fontWeight: isSelected ? 600 : 400, color: isSelected ? DS.text1 : DS.text2 }}>
+                           <span
+                              style={{
+                                 fontSize: "13.5px",
+                                 fontWeight: isSelected ? 600 : 400,
+                                 color: isSelected ? DS.text1 : DS.text2,
+                              }}>
                               {String(option[labelKey])}
                            </span>
                         </label>
@@ -925,7 +1186,9 @@ interface FormikAutocompleteProps<TOption> {
    onSelect?: (value: TOption) => void;
 }
 
-export function FormikAutocomplete<TOption>(props: FormikAutocompleteProps<TOption>) {
+export function FormikAutocomplete<TOption>(
+   props: FormikAutocompleteProps<TOption>,
+) {
    const {
       name,
       label,
@@ -937,7 +1200,7 @@ export function FormikAutocomplete<TOption>(props: FormikAutocompleteProps<TOpti
       required = false,
       responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
       padding = true,
-      onSelect
+      onSelect,
    } = props;
 
    const formik = useFormikContext<Record<string, any>>();
@@ -950,37 +1213,61 @@ export function FormikAutocomplete<TOption>(props: FormikAutocompleteProps<TOpti
    const menuRef = useRef<HTMLUListElement>(null);
 
    const value = formik.values?.[name];
-   const error = formik.touched[name] && formik.errors[name] ? String(formik.errors[name]) : null;
+   const error =
+      formik.touched[name] && formik.errors[name]
+         ? String(formik.errors[name])
+         : null;
    const hasValue = textSearch.length > 0;
    const isActive = hasValue || isFocused;
 
-   const flattenOptions = (opts: TreeNode<TOption>[], depth = 0): Array<{ item: TreeNode<TOption>; depth: number; isGroup: boolean }> => {
-      const result: Array<{ item: TreeNode<TOption>; depth: number; isGroup: boolean }> = [];
+   const flattenOptions = (
+      opts: TreeNode<TOption>[],
+      depth = 0,
+   ): Array<{ item: TreeNode<TOption>; depth: number; isGroup: boolean }> => {
+      const result: Array<{
+         item: TreeNode<TOption>;
+         depth: number;
+         isGroup: boolean;
+      }> = [];
       for (const item of opts) {
-         const hasChildren = Array.isArray(item.children_recursive) && item.children_recursive.length > 0;
+         const hasChildren =
+            Array.isArray(item.children_recursive) &&
+            item.children_recursive.length > 0;
          result.push({ item, depth, isGroup: hasChildren });
-         if (hasChildren) result.push(...flattenOptions(item.children_recursive!, depth + 1));
+         if (hasChildren)
+            result.push(...flattenOptions(item.children_recursive!, depth + 1));
       }
       return result;
    };
 
    const flatList = flattenOptions(filteredOptions);
 
-   const filterTree = (opts: TreeNode<TOption>[], query: string): TreeNode<TOption>[] => {
+   const filterTree = (
+      opts: TreeNode<TOption>[],
+      query: string,
+   ): TreeNode<TOption>[] => {
       const lower = query.toLowerCase();
       return opts.reduce<TreeNode<TOption>[]>((acc, item) => {
-         const labelMatch = String(item[labelKey]).toLowerCase().includes(lower);
-         const filteredChildren = item.children_recursive ? filterTree(item.children_recursive, query) : [];
-         if (labelMatch || filteredChildren.length) acc.push({ ...item, children_recursive: filteredChildren });
+         const labelMatch = String(item[labelKey])
+            .toLowerCase()
+            .includes(lower);
+         const filteredChildren = item.children_recursive
+            ? filterTree(item.children_recursive, query)
+            : [];
+         if (labelMatch || filteredChildren.length)
+            acc.push({ ...item, children_recursive: filteredChildren });
          return acc;
       }, []);
    };
 
    const updateTextFromValue = useCallback(() => {
-      const findInTree = (opts: TreeNode<TOption>[]): TreeNode<TOption> | null => {
+      const findInTree = (
+         opts: TreeNode<TOption>[],
+      ): TreeNode<TOption> | null => {
          for (const opt of opts) {
             const optValue = String(opt[idKey]);
-            const currentValue = value !== null && value !== undefined ? String(value) : "";
+            const currentValue =
+               value !== null && value !== undefined ? String(value) : "";
             if (optValue === currentValue) return opt;
             if (opt.children_recursive) {
                const found = findInTree(opt.children_recursive);
@@ -1022,27 +1309,47 @@ export function FormikAutocomplete<TOption>(props: FormikAutocompleteProps<TOpti
 
    useEffect(() => {
       const handleClickOutside = (e: MouseEvent) => {
-         if (inputRef.current && !inputRef.current.contains(e.target as Node) && menuRef.current && !menuRef.current.contains(e.target as Node)) {
+         if (
+            inputRef.current &&
+            !inputRef.current.contains(e.target as Node) &&
+            menuRef.current &&
+            !menuRef.current.contains(e.target as Node)
+         ) {
             setShowOptions(false);
             setIsFocused(false);
          }
       };
       document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      return () =>
+         document.removeEventListener("mousedown", handleClickOutside);
    }, []);
 
    const handleKeyDown = (e: React.KeyboardEvent) => {
       if (!showOptions || flatList.length === 0) return;
-      if (e.key === "ArrowDown") setActiveIndex((prev) => (prev + 1) % flatList.length);
-      else if (e.key === "ArrowUp") setActiveIndex((prev) => (prev - 1 + flatList.length) % flatList.length);
-      else if (e.key === "Enter" && activeIndex >= 0) selectOption(flatList[activeIndex].item);
+      if (e.key === "ArrowDown")
+         setActiveIndex((prev) => (prev + 1) % flatList.length);
+      else if (e.key === "ArrowUp")
+         setActiveIndex(
+            (prev) => (prev - 1 + flatList.length) % flatList.length,
+         );
+      else if (e.key === "Enter" && activeIndex >= 0)
+         selectOption(flatList[activeIndex].item);
       else if (e.key === "Escape") {
          setShowOptions(false);
          setIsFocused(false);
       }
    };
 
-   if (disabled) return <DisabledField label={label} value={textSearch} error={error} />;
+   if (disabled)
+      return (
+         <DisabledField
+            label={label}
+            value={textSearch}
+            error={error}
+            responsive={responsive}
+            padding={padding}
+         />
+      );
 
    return (
       <ColComponent responsive={responsive} autoPadding={padding}>
@@ -1055,17 +1362,24 @@ export function FormikAutocomplete<TOption>(props: FormikAutocompleteProps<TOpti
                   top: isActive ? "-9px" : "14px",
                   fontSize: isActive ? "11px" : "14px",
                   fontWeight: isActive ? 600 : 400,
-                  color: isActive ? (error ? DS.errorText : isFocused ? DS.accent : DS.text2) : DS.textPlaceholder,
+                  color: isActive
+                     ? error
+                        ? DS.errorText
+                        : isFocused
+                          ? DS.accent
+                          : DS.text2
+                     : DS.textPlaceholder,
                   background: DS.white,
                   padding: "0 4px",
                   transition: DS.transition,
                   letterSpacing: isActive ? "0.04em" : "0",
                   textTransform: isActive ? "uppercase" : "none",
-                  zIndex: 2
-               }}
-            >
+                  zIndex: 2,
+               }}>
                {label}
-               {required && <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>}
+               {required && (
+                  <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>
+               )}
             </label>
             <div
                style={{
@@ -1074,9 +1388,8 @@ export function FormikAutocomplete<TOption>(props: FormikAutocompleteProps<TOpti
                   border: `1.5px solid ${error ? DS.borderError : isFocused ? DS.borderFocus : DS.border}`,
                   borderRadius: DS.r8,
                   background: DS.white,
-                  boxShadow: isFocused ? DS.accentGlow : "none"
-               }}
-            >
+                  boxShadow: isFocused ? DS.accentGlow : "none",
+               }}>
                <input
                   ref={inputRef}
                   type="text"
@@ -1101,7 +1414,7 @@ export function FormikAutocomplete<TOption>(props: FormikAutocompleteProps<TOpti
                      border: "none",
                      outline: "none",
                      fontSize: "14px",
-                     color: DS.text1
+                     color: DS.text1,
                   }}
                />
                {loading ? (
@@ -1113,7 +1426,7 @@ export function FormikAutocomplete<TOption>(props: FormikAutocompleteProps<TOpti
                            border: `2px solid ${DS.border}`,
                            borderTopColor: DS.accent,
                            borderRadius: "50%",
-                           animation: "spin 0.7s linear infinite"
+                           animation: "spin 0.7s linear infinite",
                         }}
                      />
                   </div>
@@ -1121,10 +1434,28 @@ export function FormikAutocomplete<TOption>(props: FormikAutocompleteProps<TOpti
                   <button
                      type="button"
                      onClick={() => setShowOptions((s) => !s)}
-                     style={{ padding: "0 12px", background: "none", border: "none", cursor: "pointer", color: DS.text3 }}
-                  >
-                     <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ transform: showOptions ? "rotate(180deg)" : "none" }}>
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                     style={{
+                        padding: "0 12px",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: DS.text3,
+                     }}>
+                     <svg
+                        width={16}
+                        height={16}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        style={{
+                           transform: showOptions ? "rotate(180deg)" : "none",
+                        }}>
+                        <path
+                           strokeLinecap="round"
+                           strokeLinejoin="round"
+                           strokeWidth={2}
+                           d="M19 9l-7 7-7-7"
+                        />
                      </svg>
                   </button>
                )}
@@ -1151,9 +1482,8 @@ export function FormikAutocomplete<TOption>(props: FormikAutocompleteProps<TOpti
                         overflowY: "auto",
                         listStyle: "none",
                         margin: 0,
-                        padding: "4px"
-                     }}
-                  >
+                        padding: "4px",
+                     }}>
                      {flatList.length ? (
                         flatList.map(({ item, depth, isGroup }, idx) => (
                            <li
@@ -1162,31 +1492,66 @@ export function FormikAutocomplete<TOption>(props: FormikAutocompleteProps<TOpti
                               style={{
                                  padding: `8px 10px 8px ${12 + depth * 18}px`,
                                  borderRadius: DS.r6,
-                                 background: activeIndex === idx ? DS.accentLight : "transparent",
+                                 background:
+                                    activeIndex === idx
+                                       ? DS.accentLight
+                                       : "transparent",
                                  cursor: "pointer",
                                  display: "flex",
                                  alignItems: "center",
-                                 gap: "8px"
+                                 gap: "8px",
                               }}
-                              onMouseEnter={() => setActiveIndex(idx)}
-                           >
+                              onMouseEnter={() => setActiveIndex(idx)}>
                               {depth > 0 && (
-                                 <svg width={10} height={10} viewBox="0 0 12 12" fill="none">
-                                    <path d="M2 0 L2 6 L12 6" stroke="currentColor" strokeWidth="1.5" />
+                                 <svg
+                                    width={10}
+                                    height={10}
+                                    viewBox="0 0 12 12"
+                                    fill="none">
+                                    <path
+                                       d="M2 0 L2 6 L12 6"
+                                       stroke="currentColor"
+                                       strokeWidth="1.5"
+                                    />
                                  </svg>
                               )}
                               {isGroup ? (
-                                 <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={DS.accent}>
+                                 <svg
+                                    width={13}
+                                    height={13}
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke={DS.accent}>
                                     <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
                                  </svg>
                               ) : (
-                                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: DS.border }} />
+                                 <div
+                                    style={{
+                                       width: 6,
+                                       height: 6,
+                                       borderRadius: "50%",
+                                       background: DS.border,
+                                    }}
+                                 />
                               )}
-                              <span style={{ fontSize: "13.5px", fontWeight: isGroup ? 600 : 400 }}>{String(item[labelKey])}</span>
+                              <span
+                                 style={{
+                                    fontSize: "13.5px",
+                                    fontWeight: isGroup ? 600 : 400,
+                                 }}>
+                                 {String(item[labelKey])}
+                              </span>
                            </li>
                         ))
                      ) : (
-                        <li style={{ padding: "16px", textAlign: "center", color: DS.text3 }}>No hay opciones</li>
+                        <li
+                           style={{
+                              padding: "16px",
+                              textAlign: "center",
+                              color: DS.text3,
+                           }}>
+                           No hay opciones
+                        </li>
                      )}
                   </motion.ul>
                )}
@@ -1211,19 +1576,33 @@ interface FormikColorPickerProps {
 }
 
 export function FormikColorPicker(props: FormikColorPickerProps) {
-   const { name, label, colorPalette, disabled = false, required = false, responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 }, padding = true } = props;
+   const {
+      name,
+      label,
+      colorPalette,
+      disabled = false,
+      required = false,
+      responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
+      padding = true,
+   } = props;
    const formik = useFormikContext<Record<string, any>>();
    const [isOpen, setIsOpen] = useState(false);
    const pickerRef = useRef<HTMLDivElement>(null);
-   const currentColor = (formik.values?.[name] as string) || colorPalette[0] || "#000000";
-   const error = formik.touched[name] && formik.errors[name] ? String(formik.errors[name]) : null;
+   const currentColor =
+      (formik.values?.[name] as string) || colorPalette[0] || "#000000";
+   const error =
+      formik.touched[name] && formik.errors[name]
+         ? String(formik.errors[name])
+         : null;
 
    useEffect(() => {
       const handleClickOutside = (e: MouseEvent) => {
-         if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setIsOpen(false);
+         if (pickerRef.current && !pickerRef.current.contains(e.target as Node))
+            setIsOpen(false);
       };
       document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      return () =>
+         document.removeEventListener("mousedown", handleClickOutside);
    }, []);
 
    const selectColor = (color: string) => {
@@ -1233,7 +1612,9 @@ export function FormikColorPicker(props: FormikColorPickerProps) {
 
    return (
       <ColComponent responsive={responsive} autoPadding={padding}>
-         <div ref={pickerRef} style={{ position: "relative", marginBottom: "20px" }}>
+         <div
+            ref={pickerRef}
+            style={{ position: "relative", marginBottom: "20px" }}>
             <button
                type="button"
                onClick={() => !disabled && setIsOpen((o) => !o)}
@@ -1250,16 +1631,48 @@ export function FormikColorPicker(props: FormikColorPickerProps) {
                   cursor: disabled ? "not-allowed" : "pointer",
                   transition: DS.transition,
                   boxShadow: isOpen ? DS.accentGlow : DS.shadowSm,
-                  opacity: disabled ? 0.5 : 1
-               }}
-            >
-               <div style={{ width: 44, height: 44, borderRadius: DS.r6, background: currentColor, border: "1px solid rgba(0,0,0,0.08)" }} />
+                  opacity: disabled ? 0.5 : 1,
+               }}>
+               <div
+                  style={{
+                     width: 44,
+                     height: 44,
+                     borderRadius: DS.r6,
+                     background: currentColor,
+                     border: "1px solid rgba(0,0,0,0.08)",
+                  }}
+               />
                <div style={{ flex: 1, textAlign: "left" }}>
-                  <div style={{ fontSize: "13px", fontWeight: 600, color: DS.text1 }}>{label}</div>
-                  <div style={{ fontSize: "12px", color: DS.text3, fontFamily: "monospace" }}>{currentColor.toUpperCase()}</div>
+                  <div
+                     style={{
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: DS.text1,
+                     }}>
+                     {label}
+                  </div>
+                  <div
+                     style={{
+                        fontSize: "12px",
+                        color: DS.text3,
+                        fontFamily: "monospace",
+                     }}>
+                     {currentColor.toUpperCase()}
+                  </div>
                </div>
-               <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ transform: isOpen ? "rotate(180deg)" : "none" }}>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+               <svg
+                  width={16}
+                  height={16}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  style={{ transform: isOpen ? "rotate(180deg)" : "none" }}>
+                  <path
+                     strokeLinecap="round"
+                     strokeLinejoin="round"
+                     strokeWidth={2}
+                     d="M19 9l-7 7-7-7"
+                  />
                </svg>
             </button>
             <AnimatePresence>
@@ -1278,20 +1691,55 @@ export function FormikColorPicker(props: FormikColorPickerProps) {
                         background: DS.white,
                         border: `1.5px solid ${DS.border}`,
                         borderRadius: DS.r10,
-                        boxShadow: DS.shadowDropdown
-                     }}
-                  >
-                     <div style={{ padding: "12px 14px", borderBottom: `1px solid ${DS.border}`, background: DS.surface }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                           <div style={{ width: 28, height: 28, borderRadius: DS.r3, background: currentColor }} />
+                        boxShadow: DS.shadowDropdown,
+                     }}>
+                     <div
+                        style={{
+                           padding: "12px 14px",
+                           borderBottom: `1px solid ${DS.border}`,
+                           background: DS.surface,
+                        }}>
+                        <div
+                           style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                           }}>
+                           <div
+                              style={{
+                                 width: 28,
+                                 height: 28,
+                                 borderRadius: DS.r3,
+                                 background: currentColor,
+                              }}
+                           />
                            <div>
-                              <div style={{ fontSize: "12px", fontWeight: 600 }}>Color seleccionado</div>
-                              <div style={{ fontSize: "11px", fontFamily: "monospace" }}>{currentColor.toUpperCase()}</div>
+                              <div
+                                 style={{ fontSize: "12px", fontWeight: 600 }}>
+                                 Color seleccionado
+                              </div>
+                              <div
+                                 style={{
+                                    fontSize: "11px",
+                                    fontFamily: "monospace",
+                                 }}>
+                                 {currentColor.toUpperCase()}
+                              </div>
                            </div>
                         </div>
                      </div>
-                     <div style={{ padding: "14px", maxHeight: "220px", overflowY: "auto" }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: "8px" }}>
+                     <div
+                        style={{
+                           padding: "14px",
+                           maxHeight: "220px",
+                           overflowY: "auto",
+                        }}>
+                        <div
+                           style={{
+                              display: "grid",
+                              gridTemplateColumns: "repeat(10, 1fr)",
+                              gap: "8px",
+                           }}>
                            {colorPalette.map((color) => (
                               <button
                                  key={color}
@@ -1302,10 +1750,19 @@ export function FormikColorPicker(props: FormikColorPickerProps) {
                                     position: "relative",
                                     borderRadius: DS.r3,
                                     background: color,
-                                    border: currentColor === color ? "2px solid white" : "2px solid transparent",
-                                    outline: currentColor === color ? `2px solid ${DS.accent}` : "none",
-                                    transform: currentColor === color ? "scale(1.15)" : "scale(1)",
-                                    transition: DS.transition
+                                    border:
+                                       currentColor === color
+                                          ? "2px solid white"
+                                          : "2px solid transparent",
+                                    outline:
+                                       currentColor === color
+                                          ? `2px solid ${DS.accent}`
+                                          : "none",
+                                    transform:
+                                       currentColor === color
+                                          ? "scale(1.15)"
+                                          : "scale(1)",
+                                    transition: DS.transition,
                                  }}
                               />
                            ))}
@@ -1343,17 +1800,20 @@ export function FormikImageInput(props: FormikImageInputProps) {
       multiple = false,
       maxFiles = 5,
       responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
-      padding = true
+      padding = true,
    } = props;
 
-   const { setFieldValue, values, errors, touched } = useFormikContext<Record<string, any>>();
+   const { setFieldValue, values, errors, touched } =
+      useFormikContext<Record<string, any>>();
    const [previews, setPreviews] = useState<string[]>([]);
    const fileInputRef = useRef<HTMLInputElement>(null);
 
    useEffect(() => {
       const currentValue = values[name];
       if (multiple && Array.isArray(currentValue)) {
-         setPreviews(currentValue.filter((f: any) => typeof f === "string") as string[]);
+         setPreviews(
+            currentValue.filter((f: any) => typeof f === "string") as string[],
+         );
       } else if (!multiple && typeof currentValue === "string") {
          setPreviews([currentValue]);
       } else {
@@ -1383,7 +1843,7 @@ export function FormikImageInput(props: FormikImageInputProps) {
          const currentFiles = (values[name] as File[]) || [];
          setFieldValue(
             name,
-            currentFiles.filter((_, i) => i !== index)
+            currentFiles.filter((_, i) => i !== index),
          );
          URL.revokeObjectURL(previews[index]);
          setPreviews(previews.filter((_, i) => i !== index));
@@ -1399,14 +1859,34 @@ export function FormikImageInput(props: FormikImageInputProps) {
    return (
       <ColComponent responsive={responsive} autoPadding={padding}>
          <div style={{ marginBottom: "20px" }}>
-            <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px", color: DS.text1 }}>{label}</div>
+            <div
+               style={{
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  marginBottom: "8px",
+                  color: DS.text1,
+               }}>
+               {label}
+            </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
                {previews.map((src, idx) => (
-                  <div key={idx} style={{ position: "relative", width: "100px", height: "100px" }}>
+                  <div
+                     key={idx}
+                     style={{
+                        position: "relative",
+                        width: "100px",
+                        height: "100px",
+                     }}>
                      <img
                         src={src}
                         alt="preview"
-                        style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: DS.r6, border: `1px solid ${DS.border}` }}
+                        style={{
+                           width: "100%",
+                           height: "100%",
+                           objectFit: "cover",
+                           borderRadius: DS.r6,
+                           border: `1px solid ${DS.border}`,
+                        }}
                      />
                      <button
                         type="button"
@@ -1424,9 +1904,8 @@ export function FormikImageInput(props: FormikImageInputProps) {
                            cursor: "pointer",
                            display: "flex",
                            alignItems: "center",
-                           justifyContent: "center"
-                        }}
-                     >
+                           justifyContent: "center",
+                        }}>
                         <AiOutlineClose size={12} />
                      </button>
                   </div>
@@ -1444,11 +1923,12 @@ export function FormikImageInput(props: FormikImageInputProps) {
                         alignItems: "center",
                         justifyContent: "center",
                         cursor: "pointer",
-                        background: DS.surface
-                     }}
-                  >
+                        background: DS.surface,
+                     }}>
                      <AiOutlineCamera size={24} color={DS.text3} />
-                     <span style={{ fontSize: "12px", color: DS.text3 }}>Subir</span>
+                     <span style={{ fontSize: "12px", color: DS.text3 }}>
+                        Subir
+                     </span>
                   </div>
                )}
             </div>
@@ -1461,7 +1941,16 @@ export function FormikImageInput(props: FormikImageInputProps) {
                style={{ display: "none" }}
                disabled={disabled}
             />
-            {error && <div style={{ color: DS.errorText, fontSize: "12px", marginTop: "8px" }}>{error}</div>}
+            {error && (
+               <div
+                  style={{
+                     color: DS.errorText,
+                     fontSize: "12px",
+                     marginTop: "8px",
+                  }}>
+                  {error}
+               </div>
+            )}
          </div>
       </ColComponent>
    );

@@ -48,6 +48,7 @@ export const departmentCrudConfig = ConfigCrud<
       uuid: {
          label: "UUID",
          placeholder: "9X9999XX9X9XX9",
+         disabled: true,
          validation: ({ yup }) => yup.string().notRequired(),
       },
       code: {
@@ -213,7 +214,7 @@ export const departmentCrudConfig = ConfigCrud<
    .tableHeader({
       title: "probando titulo",
       subtitle: "aqwq",
-      icon: <>dd</>,
+      icon: <icons.Gi.Gi3dStairs size={30} />,
    })
    .tableActions({
       isEditing: true,
@@ -229,7 +230,7 @@ export const departmentCrudConfig = ConfigCrud<
          },
          {
             label: "Ver perfil",
-            icon: "pi-user",
+            icon: <icons.Pi.PiAcorn />,
             handleOnClick: (row) => console.log(row),
             color: "red",
             permission: true,

@@ -8,7 +8,6 @@ import React, {
 } from "react";
 import type { GenericDataReturn } from "react-zustore";
 import { useFormikContext } from "formik";
-import { IoMdAdd } from "react-icons/io";
 import { FiActivity, FiBarChart2 } from "react-icons/fi";
 import { HiDotsVertical } from "react-icons/hi";
 
@@ -69,6 +68,7 @@ export interface FieldItem {
       | "TextArea"
       | "Number"
       | "Radio";
+   disabled?: boolean;
    required?: boolean;
    type?: string;
    getFilterValue?: (value: any) => string;
@@ -152,9 +152,9 @@ const ActionButtons = <TRecord,>({
       buttons.push({
          id: "edit",
          label: "Editar",
-         icon: <icons.Lu.LuPencil className="w-4 h-4" />,
+         icon: <icons.Lu.LuPencilLine className="w-4 h-4" />,
          onClick: () => onEdit(row),
-         color: "yellow",
+         color: "orange",
          tooltip: "Editar",
       });
    }
@@ -922,6 +922,7 @@ const SuperCrud = <TForm extends object, TTable extends object = TForm>({
                name,
                label: config.label || name,
                typeField,
+               disabled: config.disabled || false,
                required: config.required || false,
                headerName: config.label || name,
                responsive: config.responsive || DEFAULT_RESPONSIVE,
@@ -1190,6 +1191,7 @@ const SuperCrud = <TForm extends object, TTable extends object = TForm>({
                   key={field.name}
                   name={field.name}
                   label={field.label}
+                  disabled={field.disabled}
                   required={field.required}
                   type={
                      (field.type as
@@ -1235,13 +1237,13 @@ const SuperCrud = <TForm extends object, TTable extends object = TForm>({
       const TableComponent = () => {
          const handleEdit = (row: TTable) => {
             const formattedRow = prepareForForm(row as unknown as TForm);
-            hook.setFormData(formattedRow);
             hook.setOpen(true);
+            hook.setFormData(formattedRow);
          };
 
          const handleDelete = (row: TTable) => {
-            setItemToDelete(row as unknown as TForm);
             setDeleteConfirmOpen(true);
+            setItemToDelete(row as unknown as TForm);
          };
 
          const overrideTable = crudConfig.overrides?.table;
@@ -1332,6 +1334,7 @@ const SuperCrud = <TForm extends object, TTable extends object = TForm>({
                   data={hook.items || []}
                   paginate={[5, 10, 25, 50, 100, 500, 1000]}
                   columns={tableColumns as any}
+                  refreshData={hook.fetchData}
                   actions={(row) => (
                      <ActionButtons
                         row={row}
@@ -1480,6 +1483,39 @@ const SuperCrud = <TForm extends object, TTable extends object = TForm>({
       <div className="space-y-4">
          {/* Header */}
          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+            {/* Table Header */}
+            {/* Header del Modal */}
+            {crudConfig?.tableHeader && (
+               <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+                  <div className="flex items-center gap-4">
+                     {crudConfig.tableHeader.icon && (
+                        <div className="text-gray-600">
+                           {typeof crudConfig.tableHeader.icon === "string" ? (
+                              <i
+                                 className={`${crudConfig.tableHeader.icon} text-2xl`}
+                              />
+                           ) : (
+                              <div
+                                 className={`p-3 rounded-xl text-white bg-red-950`}>
+                                 {crudConfig.tableHeader.icon}
+                              </div>
+                           )}
+                        </div>
+                     )}
+                     <div>
+                        <h2 className="text-2xl font-bold text-gray-900">
+                           {crudConfig.tableHeader.title}
+                        </h2>
+                        {crudConfig.tableHeader.subtitle && (
+                           <p className="font-light text-gray-600">
+                              {crudConfig.tableHeader.subtitle}
+                           </p>
+                        )}
+                     </div>
+                  </div>
+               </div>
+            )}
+
             <div className="flex flex-wrap items-center gap-2">
                {advancedConfig?.dashboard?.enabled && (
                   <button
@@ -1530,13 +1566,14 @@ const SuperCrud = <TForm extends object, TTable extends object = TForm>({
                      <FiActivity className="mr-1.5 h-3.5 w-3.5" /> Auditoría
                   </button>
                )}
-               <Tooltip content="Agregar">
+               <Tooltip content="Agregar Registro">
                   <CustomButton
+                     className="w-4 h-4"
                      onClick={() => {
                         hook.setFormData({} as TForm);
                         hook.setOpen(true);
                      }}>
-                     <IoMdAdd />
+                     <icons.Pi.PiListPlus size={25} />
                   </CustomButton>
                </Tooltip>
             </div>
@@ -1616,35 +1653,6 @@ const SuperCrud = <TForm extends object, TTable extends object = TForm>({
                </div>
             )}
 
-            {/* Table Header */}
-            {crudConfig?.tableHeader && (
-               <div className="pb-4 mb-6 border-b border-gray-200">
-                  <div className="flex items-center gap-3">
-                     {crudConfig.tableHeader.icon && (
-                        <div className="text-gray-600">
-                           {typeof crudConfig.tableHeader.icon === "string" ? (
-                              <i
-                                 className={`${crudConfig.tableHeader.icon} text-2xl`}
-                              />
-                           ) : (
-                              crudConfig.tableHeader.icon
-                           )}
-                        </div>
-                     )}
-                     <div>
-                        <h1 className="text-2xl font-semibold text-gray-900">
-                           {crudConfig.tableHeader.title}
-                        </h1>
-                        {crudConfig.tableHeader.subtitle && (
-                           <p className="text-sm text-gray-500 mt-0.5">
-                              {crudConfig.tableHeader.subtitle}
-                           </p>
-                        )}
-                     </div>
-                  </div>
-               </div>
-            )}
-
             {(!(isAdvanced && advancedHook.viewMode) ||
                advancedHook.viewMode === "table") && (
                <CustomTable
@@ -1652,14 +1660,15 @@ const SuperCrud = <TForm extends object, TTable extends object = TForm>({
                   data={hook.items || []}
                   paginate={[5, 10, 25, 50, 100, 500, 1000]}
                   columns={tableColumns as any}
+                  refreshData={hook.fetchData}
                   actions={(row) => (
                      <ActionButtons
                         row={row}
                         actionsConfig={crudConfig?.tableActions}
                         onEdit={(row) => {
                            const formattedRow = prepareForForm(row);
-                           hook.setFormData(formattedRow);
                            hook.setOpen(true);
+                           hook.setFormData(formattedRow);
                         }}
                         onDelete={(row) => {
                            hook.deleteItem(row);
