@@ -115,8 +115,18 @@ export const departmentCrudConfig = ConfigCrud<DepartmentForm, DepartmentTableRo
       ),
     },
     uuid: {
-      label: "UUID",
+      label: "UUIDFFFFFFFFFFFFFFFFF",
     },
+    created_at: {
+      label: "UUIDFFFFFFFFFFFFFFFFFFF",
+    },
+    deleted_at: {
+      label: "otroooFFFFFFFFFFFFFFF",
+    },
+    id: {
+      label: "otroooDDDDDDDDDDDDDDDDD",
+    },
+
     code: {
       label: "Codigo",
       render: (value) => (

@@ -1464,6 +1464,8 @@ const SuperCrud = <TForm extends object, TTable extends object = TForm>({
               </div>
             </div>
           )}
+                      <div className="h-[calc(100vh-80px)]">
+
           <CustomTable
             loading={hook.loading}
             data={hook.items || []}
@@ -1481,6 +1483,7 @@ const SuperCrud = <TForm extends object, TTable extends object = TForm>({
             )}
             mobileConfig={mobileConfigValue}
           />
+          </div>
         </>
       );
     };
@@ -1791,7 +1794,10 @@ const SuperCrud = <TForm extends object, TTable extends object = TForm>({
 
         {(!(isAdvanced && advancedHook.viewMode) ||
           advancedHook.viewMode === "table") && (
+            <div className="h-[calc(100vh-80px)]">
+
           <CustomTable
+
             loading={hook.loading}
             data={hook.items || []}
             paginate={[5, 10, 25, 50, 100, 500, 1000]}
@@ -1818,6 +1824,7 @@ const SuperCrud = <TForm extends object, TTable extends object = TForm>({
             )}
             mobileConfig={mobileConfigValue}
           />
+          </div>
         )}
         {isAdvanced && advancedHook.viewMode === "kanban" && <KanbanView />}
         {isAdvanced && advancedHook.viewMode === "calendar" && <CalendarView />}

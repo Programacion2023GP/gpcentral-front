@@ -1726,10 +1726,14 @@ const CustomTableInner = <T extends object>(
             {showExpandCol && (
               <td
                 style={{
-                  padding: "0 4px 0 12px",
-                  borderBottom: `1px solid ${C.border}`,
                   width: 52,
-                  paddingLeft: 12 + level * indentSize,
+                  padding: "0 4px 0 12px",
+                  background: C.thead,
+                  borderBottom: `2px solid ${C.theadBorder}`,
+                  position: "sticky",
+                  top: 0,
+                  left: 0, // ← nuevo
+                  zIndex: 30,
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -1870,6 +1874,11 @@ const CustomTableInner = <T extends object>(
                   padding: "8px 14px",
                   borderBottom: `1px solid ${C.border}`,
                   textAlign: "right",
+                  position: "sticky", // ← sticky funciona en td
+                  right: 0,
+                  background: "inherit", // ← hereda el color de la fila (striped, selected, etc.)
+                  zIndex: 1,
+                  boxShadow: `-2px 0 8px rgba(0,0,0,0.05)`,
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -1990,7 +1999,6 @@ const CustomTableInner = <T extends object>(
     const totalColumns =
       (showExpandCol ? 1 : 0) + normalColumns.length + (showActionsCol ? 1 : 0);
     return (
-      <div style={{ overflowX: "auto" }}>
         <table
           style={{
             width: "100%",
@@ -2003,13 +2011,14 @@ const CustomTableInner = <T extends object>(
               {showExpandCol && (
                 <th
                   style={{
-                    width: 52,
                     padding: "0 4px 0 12px",
-                    background: C.thead,
-                    borderBottom: `2px solid ${C.theadBorder}`,
-                    position: "sticky",
-                    top: 0,
-                    zIndex: 20,
+                    borderBottom: `1px solid ${C.border}`,
+                    width: 52,
+                    paddingLeft: 12 + level * indentSize,
+                    position: "sticky", // ← nuevo
+                    left: 0, // ← nuevo
+                    background: "inherit",
+                    zIndex: 1,
                   }}
                 >
                   {enableRowSelection && (
@@ -2220,7 +2229,9 @@ const CustomTableInner = <T extends object>(
                     borderBottom: `2px solid ${C.theadBorder}`,
                     position: "sticky",
                     top: 0,
-                    zIndex: 20,
+                    right: 0, // ← nuevo
+                    zIndex: 30, // ← más alto que el resto (eran 20)
+                    boxShadow: `-2px 0 8px rgba(0,0,0,0.06)`, // ← sombra separadora
                     fontSize: 11,
                     fontWeight: 700,
                     textTransform: "uppercase",
@@ -2420,7 +2431,6 @@ const CustomTableInner = <T extends object>(
             </tfoot>
           )}
         </table>
-      </div>
     );
   };
 
@@ -4393,7 +4403,7 @@ const CustomTableInner = <T extends object>(
         fontFamily: "'DM Sans', 'Inter', system-ui, sans-serif",
         display: "flex",
         flexDirection: "column",
-        height: isFullscreen ? "100vh" : undefined,
+        height: isFullscreen ? "100vh" : "100%", // ← "100%" en lugar de undefined
         width: "100%",
       }}
     >
@@ -5127,15 +5137,7 @@ const CustomTableInner = <T extends object>(
               whiteSpace: "nowrap",
             }}
           >
-            {[
-              {
-                value: "list" as MobileViewMode,
-                label: "Lista",
-                icon: <FiList size={12} />,
-              },
-             
-             
-            ].map((v) => (
+            {[].map((v) => (
               <button
                 key={v.value}
                 onClick={() => setMobileViewMode(v.value)}
@@ -5242,7 +5244,7 @@ const CustomTableInner = <T extends object>(
       {/* ==================== TABLE CONTENT ==================== */}
       <div
         style={{
-          overflowY: "auto",
+          overflow: "auto", // ← maneja X e Y en un solo contenedor
           flex: 1,
           background: !isMobile && viewMode === "cards" ? C.pageBg : C.white,
         }}
