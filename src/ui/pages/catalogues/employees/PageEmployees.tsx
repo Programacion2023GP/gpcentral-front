@@ -1,10 +1,9 @@
 import SuperCrud from "../../../components/compositecustoms/compositeCrud";
-import { departmentCrudConfig } from "../../../hooks/departaments/departaments.model";
-import useDepartamentsData from "../../../hooks/departaments/useDepartamentsData";
+import { employeeCrudConfig } from "../../../hooks/employees/employees.model";
 import useEmployeesData from "../../../hooks/employees/useEmployeesData";
 
 const PageEmployees = ({}) => {
-   const contextEmployees = useEmployeesData();
+   // const contextEmployees = useEmployeesData();
    return (
       <>
          <SuperCrud
@@ -12,8 +11,8 @@ const PageEmployees = ({}) => {
                modalTitleAdd: "Agregar Empleado",
                modalTitleUpdate: "Editar Empleado",
             }}
-            hook={useDepartamentsData()}
-            crudConfig={departmentCrudConfig}
+            hook={useEmployeesData()}
+            crudConfig={employeeCrudConfig}
          />
       </>
    );

@@ -1,3 +1,4 @@
+// ==================== IMPORTS ====================
 import React, {
    useState,
    useEffect,
@@ -37,17 +38,16 @@ import {
    FiCheckSquare,
    FiMenu,
    FiList,
+   FiFilter,
+   FiSettings,
 } from "react-icons/fi";
 import { RiFileExcelFill, RiFileTextLine } from "react-icons/ri";
-import Tooltip from "../toltip/Toltip";
-import CustomButton from "../button/custombuttom";
-import icons from "./../../../constant/icons";
+import {
+   MdOutlineKeyboardArrowRight,
+   MdOutlineKeyboardArrowLeft,
+} from "react-icons/md";
 
 // ==================== DEEP FIELD UTILITY ====================
-/**
- * Retrieves a nested value from an object using dot-notation paths.
- * Supports: "name", "user.name", "user.address.city", "meta.tags.0"
- */
 const getNestedValue = (obj: any, path: string): any => {
    if (!path) return undefined;
    return path.split(".").reduce((acc, key) => {
@@ -56,10 +56,6 @@ const getNestedValue = (obj: any, path: string): any => {
    }, obj);
 };
 
-/**
- * Sets a nested value using dot-notation path (used for inline edit).
- * Returns a new object (shallow clone at each level).
- */
 const setNestedValue = (obj: any, path: string, value: any): any => {
    const keys = path.split(".");
    const result = { ...obj };
@@ -74,14 +70,11 @@ const setNestedValue = (obj: any, path: string, value: any): any => {
 
 // ==================== TYPES ====================
 export interface Column<T extends object> {
-   /**
-    * Supports dot-notation for nested access, e.g. "user.address.city"
-    */
    field: string;
    headerName: string;
    renderField?: (value: any, row: T) => React.ReactNode;
-   getFilterValue?: (value: any) => string;
-   visibility?: "always" | "desktop" | "expanded" | "hidden";
+   getFilterValue?: (value: any, row?: T) => string;
+   visibility?: "always" | "desktop" | "expanded" | "hidden" | "mobile";
    priority?: number;
    filterType?:
       | "text"
@@ -91,7 +84,10 @@ export interface Column<T extends object> {
       | "select"
       | "boolean"
       | "number-range"
-      | "multi-select";
+      | "multi-select"
+      | "time"
+      | "datetime-local"
+      | "autocomplete";
    filterOptions?: Array<{ value: any; label: string }>;
    width?: number;
    minWidth?: number;
@@ -111,16 +107,21 @@ export interface Column<T extends object> {
 type ViewMode = "table" | "cards" | "compact";
 type Theme = "light" | "dark";
 type DensityMode = "comfortable" | "compact" | "spacious";
+type MobileViewMode =
+   | "list"
+   | "compact-list"
+   | "cards"
+   | "mini-cards"
+   | "timeline"
+   | "detailed-list";
+type MobileDensity = "compact" | "comfortable" | "spacious";
 
 interface SavedFilter {
    id: string;
    name: string;
    globalFilter: string;
    columnFilters: Record<string, string>;
-   sortConfig: {
-      field: string | null;
-      direction: "asc" | "desc" | null;
-   };
+   sortConfig: { field: string | null; direction: "asc" | "desc" | null };
    createdAt: string;
 }
 
@@ -129,7 +130,72 @@ interface GroupConfig {
    direction: "asc" | "desc";
 }
 
-// ==================== REF HANDLE ====================
+interface MobileConfig<T> {
+   activeViews?: boolean;
+   listTile?: {
+      leading?: (row: T) => React.ReactNode;
+      title: (row: T) => React.ReactNode;
+      subtitle?: (row: T) => React.ReactNode;
+      trailing?: (row: T) => React.ReactNode;
+   };
+   onTileTap?: (row: T) => void;
+   dismissible?: boolean;
+   swipeActions?: {
+      left?: {
+         icon: React.ReactNode;
+         color: string;
+         action: (row: T) => void;
+         label?: string;
+         hasPermission?: string | string[];
+      }[];
+      right?: {
+         icon: React.ReactNode;
+         color: string;
+         action: (row: T) => void;
+         label?: string;
+         hasPermission?: string | string[];
+      }[];
+   };
+   bottomSheet?: {
+      builder: (row: T, onClose: () => void) => React.ReactNode;
+      height?: number;
+      showCloseButton?: boolean;
+   };
+   quickFilters?: {
+      enabled?: boolean;
+      filters?: {
+         dataField: keyof T;
+         field?: keyof T;
+         type?:
+            | "text"
+            | "date"
+            | "time"
+            | "datetime"
+            | "date-range"
+            | "select"
+            | "number"
+            | "range"
+            | "checkbox";
+         label?: string;
+         placeholder?: string;
+         options?: { label: string; value: any }[];
+         defaultValue?: any;
+         defaultRange?: { start?: string | Date; end?: string | Date };
+         minDate?: string | Date;
+         maxDate?: string | Date;
+         timeFormat?: "12h" | "24h";
+         showTodayButton?: boolean;
+         showClearButton?: boolean;
+         presets?: {
+            label: string;
+            start: string | Date;
+            end: string | Date;
+         }[];
+      }[];
+      onApply?: (filters: Record<string, any>) => void;
+   };
+}
+
 export interface CustomTableHandle<T extends object = any> {
    clearAllFilters: () => void;
    clearColumnFilters: () => void;
@@ -193,6 +259,7 @@ export interface PropsTable<T extends object> {
    defaultDensity?: DensityMode;
    storageKey?: string;
    refreshData?: () => void;
+   mobileConfig?: MobileConfig<T>;
 }
 
 // ==================== DESIGN TOKENS ====================
@@ -234,7 +301,7 @@ const makeTokens = (theme: Theme) => ({
    shadowHover: "0 8px 32px rgba(155,34,66,0.18), 0 2px 8px rgba(0,0,0,0.1)",
 });
 
-// ==================== DATE FILTER SUBCOMPONENTS ====================
+// ==================== FILTER HELPERS ====================
 const DateFilterInput = ({
    field,
    value,
@@ -258,10 +325,8 @@ const DateFilterInput = ({
          defaultValue={value}
          onBlur={(e) => commit(e.target.value)}
          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-               commit((e.target as HTMLInputElement).value);
-               (e.target as HTMLInputElement).blur();
-            }
+            if (e.key === "Enter") commit((e.target as HTMLInputElement).value);
+            (e.target as HTMLInputElement).blur();
          }}
          style={{
             background: "transparent",
@@ -287,23 +352,14 @@ const DateRangeFilterInput = ({
    setColFilter: (f: string, v: string) => void;
    C: ReturnType<typeof makeTokens>;
 }) => {
-   const parts = value.split("|");
-   const [localStart, setLocalStart] = useState(parts[0] || "");
-   const [localEnd, setLocalEnd] = useState(parts[1] || "");
+   const [start, end] = value.split("|");
+   const [localStart, setLocalStart] = useState(start || "");
+   const [localEnd, setLocalEnd] = useState(end || "");
    useEffect(() => {
-      setLocalStart(parts[0] || "");
-      setLocalEnd(parts[1] || "");
-   }, [value]);
+      setLocalStart(start || "");
+      setLocalEnd(end || "");
+   }, [start, end]);
    const applyRange = () => setColFilter(field, `${localStart}|${localEnd}`);
-   const inputStyle: React.CSSProperties = {
-      background: "transparent",
-      border: "none",
-      outline: "none",
-      color: C.text1,
-      fontSize: 12,
-      width: "100%",
-      fontFamily: "inherit",
-   };
    return (
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
          <input
@@ -311,7 +367,15 @@ const DateRangeFilterInput = ({
             value={localStart}
             onChange={(e) => setLocalStart(e.target.value)}
             onBlur={applyRange}
-            style={inputStyle}
+            style={{
+               background: "transparent",
+               border: "none",
+               outline: "none",
+               color: C.text1,
+               fontSize: 12,
+               width: "100%",
+               fontFamily: "inherit",
+            }}
          />
          <div style={{ height: 1, background: C.border }} />
          <input
@@ -319,15 +383,138 @@ const DateRangeFilterInput = ({
             value={localEnd}
             onChange={(e) => setLocalEnd(e.target.value)}
             onBlur={applyRange}
-            style={inputStyle}
+            style={{
+               background: "transparent",
+               border: "none",
+               outline: "none",
+               color: C.text1,
+               fontSize: 12,
+               width: "100%",
+               fontFamily: "inherit",
+            }}
          />
       </div>
    );
 };
 
+// ==================== AUXILIARY COMPONENTS ====================
+const IconBtn = ({
+   children,
+   onClick,
+   title,
+   active = false,
+   C,
+}: {
+   children: React.ReactNode;
+   onClick: () => void;
+   title?: string;
+   active?: boolean;
+   C: ReturnType<typeof makeTokens>;
+}) => (
+   <motion.button
+      whileTap={{ scale: 0.9 }}
+      onClick={onClick}
+      title={title}
+      style={{
+         width: 32,
+         height: 32,
+         display: "flex",
+         alignItems: "center",
+         justifyContent: "center",
+         borderRadius: C.r4,
+         border: `1px solid ${active ? C.ruby : C.border}`,
+         background: active ? C.rubyLight : C.surface,
+         cursor: "pointer",
+         color: active ? C.ruby : C.text2,
+         transition: "all 0.15s",
+         position: "relative",
+      }}>
+      {children}
+   </motion.button>
+);
+
+const PgBtn = ({
+   children,
+   onClick,
+   disabled = false,
+   active = false,
+   C,
+}: {
+   children: React.ReactNode;
+   onClick: () => void;
+   disabled?: boolean;
+   active?: boolean;
+   C: ReturnType<typeof makeTokens>;
+}) => (
+   <motion.button
+      whileTap={!disabled ? { scale: 0.9 } : {}}
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+         width: 28,
+         height: 28,
+         display: "flex",
+         alignItems: "center",
+         justifyContent: "center",
+         borderRadius: C.r4,
+         border: `1px solid ${active ? C.ruby : C.border}`,
+         background: active ? C.ruby : C.surface,
+         cursor: disabled ? "not-allowed" : "pointer",
+         fontSize: 12,
+         fontWeight: active ? 700 : 500,
+         color: active ? "#fff" : C.text2,
+         opacity: disabled ? 0.4 : 1,
+         boxShadow: active ? `0 2px 8px rgba(155,34,66,0.15)` : "none",
+         transition: "all 0.15s",
+         fontFamily: "inherit",
+      }}>
+      {children}
+   </motion.button>
+);
+
+const ExportBtn = ({
+   icon,
+   label,
+   action,
+   color,
+   C,
+}: {
+   icon: React.ReactNode;
+   label: string;
+   action: () => void;
+   color: string;
+   C: ReturnType<typeof makeTokens>;
+}) => (
+   <button
+      onClick={action}
+      style={{
+         width: "100%",
+         display: "flex",
+         alignItems: "center",
+         gap: 8,
+         padding: "9px 12px",
+         borderRadius: C.r4,
+         border: "none",
+         background: "none",
+         cursor: "pointer",
+         color,
+         fontSize: 12,
+         fontWeight: 600,
+         fontFamily: "inherit",
+         transition: "background 0.1s",
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = C.hover)}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>
+      {icon} {label}
+   </button>
+);
+
 // ==================== MAIN COMPONENT ====================
 const CustomTableInner = <T extends object>(
-   {
+   props: PropsTable<T>,
+   ref: React.Ref<CustomTableHandle<T>>,
+) => {
+   const {
       data,
       columns: initialColumns,
       paginate,
@@ -368,10 +555,9 @@ const CustomTableInner = <T extends object>(
       defaultDensity = "comfortable",
       storageKey,
       refreshData,
-   }: PropsTable<T>,
-   ref: React.Ref<CustomTableHandle<T>>,
-) => {
-   // ========== STATE ==========
+      mobileConfig,
+   } = props;
+
    const [currentPage, setCurrentPage] = useState(1);
    const [rowsPerPage, setRowsPerPage] = useState(paginate[0]);
    const [globalFilter, setGlobalFilter] = useState("");
@@ -390,7 +576,6 @@ const CustomTableInner = <T extends object>(
    const [isFullscreen, setIsFullscreen] = useState(false);
    const [columns, setColumns] = useState(initialColumns);
    const prevColumnsRef = useRef(initialColumns);
-
    const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
    const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
    const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
@@ -415,15 +600,8 @@ const CustomTableInner = <T extends object>(
    const [allDataSelected, setAllDataSelected] = useState(false);
    const [showGroupPanel, setShowGroupPanel] = useState(false);
    const [rowExpanded, setRowExpanded] = useState<Set<string>>(new Set());
-   // Drag-and-drop column reorder
    const [dragCol, setDragCol] = useState<string | null>(null);
    const [dragOverCol, setDragOverCol] = useState<string | null>(null);
-
-   const showExpandCol = Boolean(childrenField) || enableRowSelection;
-   const showActionsCol = Boolean(actions) || enableRowPinning;
-
-   const C = makeTokens(theme);
-   const safeData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
    const containerRef = useRef<HTMLDivElement>(null);
    const searchRef = useRef<HTMLInputElement>(null);
    const resizeRef = useRef<{
@@ -434,79 +612,32 @@ const CustomTableInner = <T extends object>(
    const columnManagerRef = useRef<HTMLDivElement>(null);
    const exportMenuRef = useRef<HTMLDivElement>(null);
    const filterLibraryRef = useRef<HTMLDivElement>(null);
-   useEffect(() => {
-      // Detecta si la prop realmente cambió (comparación superficial de campos)
-      const hasChanged =
-         initialColumns.length !== prevColumnsRef.current.length ||
-         initialColumns.some(
-            (col, idx) => col.field !== prevColumnsRef.current[idx]?.field,
-         );
 
-      if (hasChanged) {
-         // Actualiza el estado interno conservando width, visibility, etc. que no vienen en la prop
-         setColumns((prevState) =>
-            initialColumns.map((newCol) => {
-               const existing = prevState.find((c) => c.field === newCol.field);
-               return existing
-                  ? {
-                       ...newCol,
-                       width: existing.width,
-                       visibility: existing.visibility,
-                    }
-                  : newCol;
-            }),
-         );
-         prevColumnsRef.current = initialColumns;
-      }
-   }, [initialColumns]);
-   const dp = {
-      comfortable: {
-         cell: "13px 16px",
-         header: "14px 16px 0",
-         filterMargin: "8px 10px 10px",
-      },
-      compact: {
-         cell: "7px 12px",
-         header: "10px 12px 0",
-         filterMargin: "5px 8px 7px",
-      },
-      spacious: {
-         cell: "18px 20px",
-         header: "18px 20px 0",
-         filterMargin: "10px 12px 12px",
-      },
-   }[density];
-
-   // ========== SYNC INITIAL COLUMNS ==========
-   useEffect(() => {
-      setColumns(initialColumns);
-   }, [initialColumns]);
-
-   // ========== VISIBLE COLUMNS ==========
-   const allVisibleColumns = useMemo(
-      () =>
-         columns.filter((col) => {
-            if (hiddenColumns.has(col.field)) return false;
-            if (col.visibility === "hidden") return false;
-            return true;
-         }),
-      [columns, hiddenColumns],
+   // ---------- Mobile state ----------
+   const [isMobile, setIsMobile] = useState(false);
+   const [screenSize, setScreenSize] = useState<"xs" | "sm" | "md">("md");
+   const [mobileViewMode, setMobileViewMode] = useState<MobileViewMode>("list");
+   const [mobileDensity, setMobileDensity] =
+      useState<MobileDensity>("comfortable");
+   const [showMobileSettings, setShowMobileSettings] = useState(false);
+   const [showFilterModal, setShowFilterModal] = useState(false);
+   const [tempFilters, setTempFilters] = useState<Record<string, any>>({});
+   const [activeFilters, setActiveFilters] = useState<Record<string, any>>({});
+   const [showBottomSheet, setShowBottomSheet] = useState(false);
+   const [selectedRowForSheet, setSelectedRowForSheet] = useState<T | null>(
+      null,
    );
+   const [activeDetails, setActiveDetails] = useState<number | null>(null);
+   const [swipeData, setSwipeData] = useState({
+      index: null as number | null,
+      offset: 0,
+      isSwiping: false,
+   });
+   const filterTimeoutRef = useRef<any>(null);
 
-   const normalColumns = useMemo(
-      () => allVisibleColumns.filter((col) => col.visibility !== "expanded"),
-      [allVisibleColumns],
-   );
-   const expandedColumns = useMemo(
-      () => allVisibleColumns.filter((col) => col.visibility === "expanded"),
-      [allVisibleColumns],
-   );
+   const C = makeTokens(theme);
+   const safeData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
 
-   // ========== ROW ID ==========
-   /**
-    * Resolves a stable row ID.
-    * Priority: rowIdField prop (supports dot-notation) → "id" field → fallback to index string.
-    */
    const getRowId = useCallback(
       (row: Record<string, any>, index: number): string => {
          if (rowIdField) {
@@ -520,34 +651,54 @@ const CustomTableInner = <T extends object>(
       [rowIdField],
    );
 
-   // ========== FILTERING ==========
+   const allVisibleColumns = useMemo(
+      () =>
+         columns.filter(
+            (col) =>
+               !hiddenColumns.has(col.field) && col.visibility !== "hidden",
+         ),
+      [columns, hiddenColumns],
+   );
+   const normalColumns = useMemo(
+      () => allVisibleColumns.filter((col) => col.visibility !== "expanded"),
+      [allVisibleColumns],
+   );
+   const expandedColumns = useMemo(
+      () => allVisibleColumns.filter((col) => col.visibility === "expanded"),
+      [allVisibleColumns],
+   );
+
+   const showExpandCol = Boolean(childrenField) || enableRowSelection;
+   const showActionsCol = Boolean(actions) || enableRowPinning;
+
    const filteredData = useMemo(() => {
       if (!globalFilter && Object.keys(columnFilters).length === 0)
          return safeData;
       return safeData.filter((row) => {
          if (globalFilter) {
-            const matchesGlobal = allVisibleColumns.some((col) => {
-               const val = col.getFilterValue
+            const matches = allVisibleColumns.some((col) =>
+               (col.getFilterValue
                   ? col.getFilterValue(getNestedValue(row, col.field))
-                  : String(getNestedValue(row, col.field) ?? "");
-               return val.toLowerCase().includes(globalFilter.toLowerCase());
-            });
-            if (!matchesGlobal) return false;
+                  : String(getNestedValue(row, col.field) ?? "")
+               )
+                  .toLowerCase()
+                  .includes(globalFilter.toLowerCase()),
+            );
+            if (!matches) return false;
          }
          for (const [field, filterValue] of Object.entries(columnFilters)) {
             if (!filterValue) continue;
             const col = columns.find((c) => c.field === field);
             if (!col) continue;
             const rowValue = getNestedValue(row, field);
-            const rawValue = String(rowValue ?? "");
+            const raw = String(rowValue ?? "");
             switch (col.filterType) {
-               case "number": {
-                  if (!rawValue.includes(filterValue)) return false;
+               case "number":
+                  if (!raw.includes(filterValue)) return false;
                   break;
-               }
                case "select":
                case "boolean":
-                  if (rawValue !== filterValue) return false;
+                  if (raw !== filterValue) return false;
                   break;
                case "date-range": {
                   const [start, end] = filterValue.split("|");
@@ -569,24 +720,19 @@ const CustomTableInner = <T extends object>(
                }
                case "multi-select": {
                   const selected = filterValue.split(",").filter(Boolean);
-                  if (selected.length > 0 && !selected.includes(rawValue))
+                  if (selected.length > 0 && !selected.includes(raw))
                      return false;
                   break;
                }
-               case "text":
                default:
-                  if (
-                     !rawValue.toLowerCase().includes(filterValue.toLowerCase())
-                  )
+                  if (!raw.toLowerCase().includes(filterValue.toLowerCase()))
                      return false;
-                  break;
             }
          }
          return true;
       });
    }, [safeData, globalFilter, columnFilters, allVisibleColumns, columns]);
 
-   // ========== SORTING ==========
    const sortedData = useMemo(
       () =>
          [...filteredData].sort((a, b) => {
@@ -603,7 +749,6 @@ const CustomTableInner = <T extends object>(
       [filteredData, sortConfig],
    );
 
-   // ========== GROUPING ==========
    const groupedData = useMemo(() => {
       if (!groupBy || !enableGroupBy) return null;
       const map = new Map<string, T[]>();
@@ -617,7 +762,6 @@ const CustomTableInner = <T extends object>(
       return entries;
    }, [sortedData, groupBy, enableGroupBy]);
 
-   // ========== AGGREGATIONS ==========
    const aggregations = useMemo(() => {
       if (!enableAggregations) return {};
       const agg: Record<string, any> = {};
@@ -655,26 +799,32 @@ const CustomTableInner = <T extends object>(
       return agg;
    }, [filteredData, normalColumns, enableAggregations]);
 
-   // ========== PAGINATION ==========
    const flatData = sortedData;
    const totalRows = flatData.length;
    const totalPages = Math.max(1, Math.ceil(totalRows / rowsPerPage));
    const startIndex = (currentPage - 1) * rowsPerPage;
    const currentRows = flatData.slice(startIndex, startIndex + rowsPerPage);
-
    const pinnedRowsData = useMemo(
       () =>
          sortedData.filter((row, i) => pinnedRows.has(getRowId(row as any, i))),
       [sortedData, pinnedRows, getRowId],
    );
-
    const selectedData = useMemo(
       () =>
          safeData.filter((row, i) => selectedRows.has(getRowId(row as any, i))),
       [safeData, selectedRows, getRowId],
    );
 
-   // ========== EXCEL CONDITION FILTERING ==========
+   // ---------- Mobile active filter count ----------
+   const mobileActiveFilterCount = useMemo(() => {
+      return Object.values(activeFilters).filter((v) => {
+         if (!v) return false;
+         if (typeof v === "object")
+            return Object.keys(v).length > 0 && (v.start || v.end);
+         return v !== "";
+      }).length;
+   }, [activeFilters]);
+
    const getExportData = useCallback(
       (onlySelected: boolean, dataSource: T[]) => {
          let base = onlySelected ? selectedData : dataSource;
@@ -696,7 +846,84 @@ const CustomTableInner = <T extends object>(
       [selectedData, conditionExcel],
    );
 
-   // ========== RESET ==========
+   const getExportRows = (dataToExport: T[]) =>
+      dataToExport.map((row) => {
+         const obj: Record<string, any> = {};
+         columns.forEach((col) => {
+            try {
+               const rawVal = getNestedValue(row, col.field);
+               const rv = col.renderField ? col.renderField(rawVal, row) : null;
+               obj[col.headerName] =
+                  rv && (typeof rv === "string" || typeof rv === "number")
+                     ? String(rv)
+                     : col.getFilterValue
+                       ? col.getFilterValue(rawVal)
+                       : rawVal;
+            } catch {
+               obj[col.headerName] = getNestedValue(row, col.field);
+            }
+         });
+         return obj;
+      });
+
+   const exportExcel = (dataToExport: T[]) => {
+      const rows = getExportRows(dataToExport);
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Datos");
+      XLSX.writeFile(wb, `${title || "export"}.xlsx`);
+      setShowExportMenu(false);
+   };
+
+   const exportCSV = (dataToExport: T[]) => {
+      const headers = columns.map((c) => `"${c.headerName}"`).join(",");
+      const rows = dataToExport
+         .map((row) =>
+            columns
+               .map(
+                  (col) =>
+                     `"${String(getNestedValue(row, col.field) ?? "").replace(/"/g, '""')}"`,
+               )
+               .join(","),
+         )
+         .join("\n");
+      const blob = new Blob([`\uFEFF${headers}\n${rows}`], {
+         type: "text/csv;charset=utf-8;",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title || "export"}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setShowExportMenu(false);
+   };
+
+   const exportJSON = (dataToExport: T[]) => {
+      const rows = dataToExport.map((row) => {
+         const obj: Record<string, any> = {};
+         columns.forEach(
+            (col) => (obj[col.field] = getNestedValue(row, col.field)),
+         );
+         return obj;
+      });
+      const blob = new Blob([JSON.stringify(rows, null, 2)], {
+         type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title || "export"}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setShowExportMenu(false);
+   };
+
+   const printTable = () => {
+      window.print();
+      setShowExportMenu(false);
+   };
+
    const resetSelection = useCallback(() => {
       setSelectedRows(new Set());
       setSelectAll(false);
@@ -708,7 +935,6 @@ const CustomTableInner = <T extends object>(
       setCurrentPage(1);
    }, [data]);
 
-   // Sync selectAll state with selectedRows
    useEffect(() => {
       if (selectedRows.size === 0) {
          setSelectAll(false);
@@ -718,111 +944,330 @@ const CustomTableInner = <T extends object>(
          currentRows.every((r, i) =>
             selectedRows.has(getRowId(r as any, startIndex + i)),
          )
-      ) {
+      )
          setSelectAll(true);
-      } else {
-         setSelectAll(false);
-      }
+      else setSelectAll(false);
       if (
          safeData.length > 0 &&
          safeData.every((r, i) => selectedRows.has(getRowId(r as any, i)))
-      ) {
+      )
          setAllDataSelected(true);
-      } else {
-         setAllDataSelected(false);
-      }
+      else setAllDataSelected(false);
    }, [selectedRows, currentRows, safeData, getRowId, startIndex]);
 
-   // ========== KEYBOARD SHORTCUTS ==========
    useEffect(() => {
-      const h = (e: KeyboardEvent) => {
-         // ⌘K / Ctrl+K → focus search
-         if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-            e.preventDefault();
-            searchRef.current?.focus();
-         }
-         // ⌘F / Ctrl+F inside container → fullscreen
-         if (
-            (e.metaKey || e.ctrlKey) &&
-            e.key === "f" &&
-            containerRef.current?.contains(document.activeElement)
-         ) {
-            e.preventDefault();
-            setIsFullscreen((f) => !f);
-         }
-         if (e.key === "Escape") {
-            setShowColumnManager(false);
-            setShowExportMenu(false);
-            setShowFilterLibrary(false);
-            setShowGroupPanel(false);
-            setShowStats(false);
-            setEditingCell(null);
-            if (isFullscreen) setIsFullscreen(false);
-         }
-      };
-      window.addEventListener("keydown", h);
-      return () => window.removeEventListener("keydown", h);
-   }, [isFullscreen]);
+      if (onRowSelect) onRowSelect(selectedData);
+   }, [selectedRows]);
 
-   // Click-outside for dropdowns
-   useEffect(() => {
-      const handle = (e: MouseEvent) => {
-         if (!showColumnManager && !showExportMenu && !showFilterLibrary)
-            return;
-         const target = e.target as Node;
-         const inside =
-            (showColumnManager && columnManagerRef.current?.contains(target)) ||
-            (showExportMenu && exportMenuRef.current?.contains(target)) ||
-            (showFilterLibrary && filterLibraryRef.current?.contains(target));
-         if (!inside) {
-            setShowColumnManager(false);
-            setShowExportMenu(false);
-            setShowFilterLibrary(false);
+   const handleSort = (field: string) =>
+      setSortConfig((p) => {
+         if (p.field === field) {
+            if (p.direction === "asc") return { field, direction: "desc" };
+            if (p.direction === "desc") return { field: null, direction: null };
          }
-      };
-      document.addEventListener("mousedown", handle);
-      return () => document.removeEventListener("mousedown", handle);
-   }, [showColumnManager, showExportMenu, showFilterLibrary]);
+         return { field, direction: "asc" };
+      });
 
-   // Fullscreen styles
-   useEffect(() => {
-      if (!containerRef.current) return;
-      if (isFullscreen) {
-         document.body.style.overflow = "hidden";
-         containerRef.current.style.position = "fixed";
-         containerRef.current.style.inset = "0";
-         containerRef.current.style.zIndex = "9999";
-         containerRef.current.style.borderRadius = "0";
+   const setColFilter = (f: string, v: string) => {
+      setColumnFilters((prev) => ({ ...prev, [f]: v }));
+      setCurrentPage(1);
+   };
+   const clearColFilter = (f: string) => setColFilter(f, "");
+   const clearAll = () => {
+      setGlobalFilter("");
+      setColumnFilters({});
+      setCurrentPage(1);
+      setSortConfig({ field: null, direction: null });
+      resetSelection();
+   };
+   const handleSelectAll = () => {
+      if (selectAll) {
+         setSelectedRows((prev) => {
+            const n = new Set(prev);
+            currentRows.forEach((r, i) =>
+               n.delete(getRowId(r as any, startIndex + i)),
+            );
+            return n;
+         });
       } else {
-         document.body.style.overflow = "";
-         containerRef.current.style.position = "";
-         containerRef.current.style.inset = "";
-         containerRef.current.style.zIndex = "";
-         containerRef.current.style.borderRadius = C.r12;
+         setSelectedRows((prev) => {
+            const n = new Set(prev);
+            currentRows.forEach((r, i) =>
+               n.add(getRowId(r as any, startIndex + i)),
+            );
+            return n;
+         });
       }
-   }, [isFullscreen]);
+   };
+   const handleSelectAllRows = (onlyFiltered = false) => {
+      const source = onlyFiltered ? flatData : safeData;
+      if (allDataSelected) {
+         resetSelection();
+         onSelectAllRows?.(false, []);
+      } else {
+         const ids = new Set(source.map((r, i) => getRowId(r as any, i)));
+         setSelectedRows(ids);
+         setSelectAll(true);
+         setAllDataSelected(true);
+         onSelectAllRows?.(true, source);
+      }
+   };
+   const toggleRow = (rowId: string) =>
+      setSelectedRows((prev) => {
+         const n = new Set(prev);
+         n.has(rowId) ? n.delete(rowId) : n.add(rowId);
+         return n;
+      });
+   const toggleColumnVisibility = (field: string) =>
+      setHiddenColumns((prev) => {
+         const n = new Set(prev);
+         n.has(field) ? n.delete(field) : n.add(field);
+         return n;
+      });
+   const togglePinRow = (rowId: string) =>
+      setPinnedRows((prev) => {
+         const n = new Set(prev);
+         n.has(rowId) ? n.delete(rowId) : n.add(rowId);
+         return n;
+      });
+   const toggleExpand = (nodeId: string) =>
+      setExpandedNodes((prev) => {
+         const n = new Set(prev);
+         n.has(nodeId) ? n.delete(nodeId) : n.add(nodeId);
+         return n;
+      });
+   const toggleRowExpanded = (rowId: string) =>
+      setRowExpanded((prev) => {
+         const n = new Set(prev);
+         n.has(rowId) ? n.delete(rowId) : n.add(rowId);
+         return n;
+      });
 
-   // Column resize
+   const startResize = (col: string, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const w =
+         columnWidths[col] ||
+         normalColumns.find((c) => c.field === col)?.width ||
+         140;
+      resizeRef.current = { col, startX: e.clientX, startW: w };
+      setResizingCol(col);
+   };
+
+   const getColumnStats = (col: Column<T>) => {
+      const vals = filteredData
+         .map((r) => Number(getNestedValue(r, col.field)))
+         .filter((v) => !isNaN(v));
+      if (vals.length === 0) return null;
+      return {
+         sum: vals.reduce((a, b) => a + b, 0),
+         avg: vals.reduce((a, b) => a + b, 0) / vals.length,
+         min: Math.min(...vals),
+         max: Math.max(...vals),
+         count: vals.length,
+      };
+   };
+
+   const dp = {
+      comfortable: {
+         cell: "13px 16px",
+         header: "14px 16px 0",
+         filterMargin: "8px 10px 10px",
+      },
+      compact: {
+         cell: "7px 12px",
+         header: "10px 12px 0",
+         filterMargin: "5px 8px 7px",
+      },
+      spacious: {
+         cell: "18px 20px",
+         header: "18px 20px 0",
+         filterMargin: "10px 12px 12px",
+      },
+   }[density];
+
+   const highlight = (text: string) => {
+      if (!globalFilter || !text) return text;
+      const escaped = globalFilter.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(`(${escaped})`, "gi");
+      return (
+         <>
+            {text.split(re).map((p, i) =>
+               re.test(p) ? (
+                  <mark
+                     key={i}
+                     style={{
+                        background: "rgba(155,34,66,0.18)",
+                        color: C.ruby,
+                        borderRadius: 2,
+                        padding: "0 1px",
+                        fontWeight: 700,
+                     }}>
+                     {p}
+                  </mark>
+               ) : (
+                  p
+               ),
+            )}
+         </>
+      );
+   };
+
+   const getCardTitle = (row: T): string => {
+      if (cardTitleField) {
+         const v = getNestedValue(row, cardTitleField);
+         if (v) return String(v);
+      }
+      const tf = columns.find(
+         (c) =>
+            c.priority === 1 || c.headerName.toLowerCase().includes("nombre"),
+      );
+      return tf ? String(getNestedValue(row, tf.field) || "") : "—";
+   };
+   const getCardSubtitle = (row: T): string => {
+      const sf = columns.find((c) => c.priority === 2);
+      return sf ? String(getNestedValue(row, sf.field) || "") : "";
+   };
+
+   const startEdit = (rowId: string, field: string, value: string) => {
+      if (!enableInlineEdit) return;
+      setEditingCell({ rowId, field });
+      setEditingValue(value);
+   };
+   const commitEdit = (row: T, rowIndex: number) => {
+      if (!editingCell || !onCellEdit) {
+         setEditingCell(null);
+         return;
+      }
+      onCellEdit(row, editingCell.field, editingValue);
+      setEditingCell(null);
+   };
+   const copyCellValue = (val: string, key: string) => {
+      navigator.clipboard.writeText(val).catch(() => {});
+      setCopiedCell(key);
+      setTimeout(() => setCopiedCell(null), 1500);
+   };
+   const getPages = () => {
+      if (totalPages <= 7)
+         return Array.from({ length: totalPages }, (_, i) => i + 1);
+      if (currentPage <= 3) return [1, 2, 3, "…", totalPages];
+      if (currentPage >= totalPages - 2)
+         return [1, "…", totalPages - 2, totalPages - 1, totalPages];
+      return [
+         1,
+         "…",
+         currentPage - 1,
+         currentPage,
+         currentPage + 1,
+         "…",
+         totalPages,
+      ];
+   };
+
+   const handleDragStart = (field: string) => setDragCol(field);
+   const handleDragOver = (e: React.DragEvent, field: string) => {
+      e.preventDefault();
+      setDragOverCol(field);
+   };
+   const handleDrop = (targetField: string) => {
+      if (!dragCol || dragCol === targetField) {
+         setDragCol(null);
+         setDragOverCol(null);
+         return;
+      }
+      setColumns((prev) => {
+         const cols = [...prev];
+         const fromIdx = cols.findIndex((c) => c.field === dragCol);
+         const toIdx = cols.findIndex((c) => c.field === targetField);
+         if (fromIdx === -1 || toIdx === -1) return prev;
+         const [removed] = cols.splice(fromIdx, 1);
+         cols.splice(toIdx, 0, removed);
+         return cols;
+      });
+      setDragCol(null);
+      setDragOverCol(null);
+   };
+   const handleDragEnd = () => {
+      setDragCol(null);
+      setDragOverCol(null);
+   };
+
+   const saveCurrentFilter = () => {
+      if (!saveFilterName.trim()) return;
+      const f: SavedFilter = {
+         id: Date.now().toString(),
+         name: saveFilterName.trim(),
+         globalFilter,
+         columnFilters,
+         sortConfig,
+         createdAt: new Date().toLocaleDateString(),
+      };
+      setSavedFilters((prev) => [...prev, f]);
+      setSaveFilterName("");
+      setShowSaveFilterModal(false);
+   };
+   const applyFilter = (f: SavedFilter) => {
+      setGlobalFilter(f.globalFilter);
+      setColumnFilters(f.columnFilters);
+      setSortConfig(f.sortConfig);
+      setCurrentPage(1);
+      resetSelection();
+      setShowFilterLibrary(false);
+   };
+   const deleteSavedFilter = (id: string) =>
+      setSavedFilters((prev) => prev.filter((f) => f.id !== id));
+
    useEffect(() => {
-      const onMove = (e: MouseEvent) => {
-         if (!resizeRef.current) return;
-         const delta = e.clientX - resizeRef.current.startX;
-         const newW = Math.max(60, resizeRef.current.startW + delta);
-         setColumnWidths((p) => ({ ...p, [resizeRef.current!.col]: newW }));
+      const check = () => {
+         const width = window.innerWidth;
+         setIsMobile(width < 1024);
+         setScreenSize(width < 375 ? "xs" : width < 430 ? "sm" : "md");
       };
-      const onUp = () => {
-         resizeRef.current = null;
-         setResizingCol(null);
-      };
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
-      return () => {
-         window.removeEventListener("mousemove", onMove);
-         window.removeEventListener("mouseup", onUp);
-      };
+      check();
+      window.addEventListener("resize", check);
+      return () => window.removeEventListener("resize", check);
    }, []);
 
-   // localStorage persistence
+   useEffect(() => {
+      if (mobileConfig?.quickFilters?.filters) {
+         const initial: Record<string, any> = {};
+         const initialActive: Record<string, any> = {};
+         mobileConfig.quickFilters.filters.forEach((filter) => {
+            const field = String(filter.field);
+            let defaultValue = filter.defaultValue;
+            if (filter.type === "date" && filter.defaultValue === "today")
+               defaultValue = new Date().toISOString().split("T")[0];
+            if (filter.type === "date-range" && filter.defaultRange) {
+               const start = filter.defaultRange.start
+                  ? new Date(filter.defaultRange.start)
+                       .toISOString()
+                       .split("T")[0]
+                  : "";
+               const end = filter.defaultRange.end
+                  ? new Date(filter.defaultRange.end)
+                       .toISOString()
+                       .split("T")[0]
+                  : "";
+               if (start || end) defaultValue = { start, end };
+            }
+            initial[field] = defaultValue || "";
+            if (
+               defaultValue &&
+               (typeof defaultValue !== "object" ||
+                  Object.keys(defaultValue).length > 0)
+            )
+               initialActive[field] = defaultValue;
+         });
+         setTempFilters(initial);
+         setActiveFilters(initialActive);
+         if (
+            Object.keys(initialActive).length > 0 &&
+            mobileConfig.quickFilters.onApply
+         )
+            mobileConfig.quickFilters.onApply(initialActive);
+      }
+   }, [mobileConfig]);
+
    useEffect(() => {
       if (!storageKey) return;
       try {
@@ -878,447 +1323,265 @@ const CustomTableInner = <T extends object>(
       viewMode,
    ]);
 
-   // onRowSelect callback
    useEffect(() => {
-      if (onRowSelect) {
-         onRowSelect(selectedData);
-      }
-   }, [selectedRows]);
-
-   // ========== HANDLERS ==========
-   const handleSort = (field: string) =>
-      setSortConfig((p) => {
-         if (p.field === field) {
-            if (p.direction === "asc") return { field, direction: "desc" };
-            if (p.direction === "desc") return { field: null, direction: null };
+      const h = (e: KeyboardEvent) => {
+         if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+            e.preventDefault();
+            searchRef.current?.focus();
          }
-         return { field, direction: "asc" };
-      });
-
-   const setColFilter = (f: string, v: string) => {
-      setColumnFilters((p) => ({ ...p, [f]: v }));
-      setCurrentPage(1);
-   };
-   const clearColFilter = (f: string) => setColFilter(f, "");
-
-   const clearAll = () => {
-      setGlobalFilter("");
-      setColumnFilters({});
-      setCurrentPage(1);
-      setSortConfig({ field: null, direction: null });
-      resetSelection();
-   };
-
-   const toggleExpand = (nodeId: string) =>
-      setExpandedNodes((prev) => {
-         const n = new Set(prev);
-         n.has(nodeId) ? n.delete(nodeId) : n.add(nodeId);
-         return n;
-      });
-
-   const toggleRow = (rowId: string) =>
-      setSelectedRows((prev) => {
-         const n = new Set(prev);
-         n.has(rowId) ? n.delete(rowId) : n.add(rowId);
-         return n;
-      });
-
-   const toggleRowExpanded = (rowId: string) =>
-      setRowExpanded((prev) => {
-         const n = new Set(prev);
-         n.has(rowId) ? n.delete(rowId) : n.add(rowId);
-         return n;
-      });
-
-   const handleSelectAll = () => {
-      if (selectAll) {
-         setSelectedRows((prev) => {
-            const n = new Set(prev);
-            currentRows.forEach((r, i) =>
-               n.delete(getRowId(r as any, startIndex + i)),
-            );
-            return n;
-         });
-      } else {
-         setSelectedRows((prev) => {
-            const n = new Set(prev);
-            currentRows.forEach((r, i) =>
-               n.add(getRowId(r as any, startIndex + i)),
-            );
-            return n;
-         });
-      }
-   };
-
-   const handleSelectAllRows = (onlyFiltered = false) => {
-      const source = onlyFiltered ? flatData : safeData;
-      if (allDataSelected) {
-         resetSelection();
-         onSelectAllRows?.(false, []);
-      } else {
-         const ids = new Set(source.map((r, i) => getRowId(r as any, i)));
-         setSelectedRows(ids);
-         setSelectAll(true);
-         setAllDataSelected(true);
-         onSelectAllRows?.(true, source);
-      }
-   };
-
-   const toggleColumnVisibility = (field: string) =>
-      setHiddenColumns((prev) => {
-         const n = new Set(prev);
-         n.has(field) ? n.delete(field) : n.add(field);
-         return n;
-      });
-
-   const togglePinRow = (rowId: string) =>
-      setPinnedRows((prev) => {
-         const n = new Set(prev);
-         n.has(rowId) ? n.delete(rowId) : n.add(rowId);
-         return n;
-      });
-
-   // ========== COLUMN DRAG REORDER ==========
-   const handleDragStart = (field: string) => setDragCol(field);
-   const handleDragOver = (e: React.DragEvent, field: string) => {
-      e.preventDefault();
-      setDragOverCol(field);
-   };
-   const handleDrop = (targetField: string) => {
-      if (!dragCol || dragCol === targetField) {
-         setDragCol(null);
-         setDragOverCol(null);
-         return;
-      }
-      setColumns((prev) => {
-         const cols = [...prev];
-         const fromIdx = cols.findIndex((c) => c.field === dragCol);
-         const toIdx = cols.findIndex((c) => c.field === targetField);
-         if (fromIdx === -1 || toIdx === -1) return prev;
-         const [removed] = cols.splice(fromIdx, 1);
-         cols.splice(toIdx, 0, removed);
-         return cols;
-      });
-      setDragCol(null);
-      setDragOverCol(null);
-   };
-   const handleDragEnd = () => {
-      setDragCol(null);
-      setDragOverCol(null);
-   };
-
-   // ========== SAVED FILTERS ==========
-   const saveCurrentFilter = () => {
-      if (!saveFilterName.trim()) return;
-      const f: SavedFilter = {
-         id: Date.now().toString(),
-         name: saveFilterName.trim(),
-         globalFilter,
-         columnFilters,
-         sortConfig,
-         createdAt: new Date().toLocaleDateString(),
+         if (
+            (e.metaKey || e.ctrlKey) &&
+            e.key === "f" &&
+            containerRef.current?.contains(document.activeElement)
+         ) {
+            e.preventDefault();
+            setIsFullscreen((f) => !f);
+         }
+         if (e.key === "Escape") {
+            setShowColumnManager(false);
+            setShowExportMenu(false);
+            setShowFilterLibrary(false);
+            setShowGroupPanel(false);
+            setShowStats(false);
+            setEditingCell(null);
+            if (isFullscreen) setIsFullscreen(false);
+         }
       };
-      setSavedFilters((p) => [...p, f]);
-      setSaveFilterName("");
-      setShowSaveFilterModal(false);
-   };
+      window.addEventListener("keydown", h);
+      return () => window.removeEventListener("keydown", h);
+   }, [isFullscreen]);
 
-   const applyFilter = (f: SavedFilter) => {
-      setGlobalFilter(f.globalFilter);
-      setColumnFilters(f.columnFilters);
-      setSortConfig(f.sortConfig);
-      setCurrentPage(1);
-      resetSelection();
-      setShowFilterLibrary(false);
-   };
+   useEffect(() => {
+      const handle = (e: MouseEvent) => {
+         if (!showColumnManager && !showExportMenu && !showFilterLibrary)
+            return;
+         const target = e.target as Node;
+         const inside =
+            (showColumnManager && columnManagerRef.current?.contains(target)) ||
+            (showExportMenu && exportMenuRef.current?.contains(target)) ||
+            (showFilterLibrary && filterLibraryRef.current?.contains(target));
+         if (!inside) {
+            setShowColumnManager(false);
+            setShowExportMenu(false);
+            setShowFilterLibrary(false);
+         }
+      };
+      document.addEventListener("mousedown", handle);
+      return () => document.removeEventListener("mousedown", handle);
+   }, [showColumnManager, showExportMenu, showFilterLibrary]);
 
-   const deleteSavedFilter = (id: string) =>
-      setSavedFilters((p) => p.filter((f) => f.id !== id));
-
-   // ========== COPY CELL ==========
-   const copyCellValue = (val: string, key: string) => {
-      navigator.clipboard.writeText(val).catch(() => {});
-      setCopiedCell(key);
-      setTimeout(() => setCopiedCell(null), 1500);
-   };
-
-   // ========== RESIZE ==========
-   const startResize = (col: string, e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const w =
-         columnWidths[col] ||
-         normalColumns.find((c) => c.field === col)?.width ||
-         140;
-      resizeRef.current = { col, startX: e.clientX, startW: w };
-      setResizingCol(col);
-   };
-
-   // ========== CARD HELPERS ==========
-   const getCardTitle = (row: T): string => {
-      if (cardTitleField) {
-         const v = getNestedValue(row, cardTitleField);
-         if (v) return String(v);
+   useEffect(() => {
+      if (!containerRef.current) return;
+      if (isFullscreen) {
+         document.body.style.overflow = "hidden";
+         containerRef.current.style.position = "fixed";
+         containerRef.current.style.inset = "0";
+         containerRef.current.style.zIndex = "9999";
+         containerRef.current.style.borderRadius = "0";
+      } else {
+         document.body.style.overflow = "";
+         containerRef.current.style.position = "";
+         containerRef.current.style.inset = "";
+         containerRef.current.style.zIndex = "";
+         containerRef.current.style.borderRadius = C.r12;
       }
-      const tf = columns.find(
-         (c) =>
-            c.priority === 1 || c.headerName.toLowerCase().includes("nombre"),
-      );
-      return tf ? String(getNestedValue(row, tf.field) || "") : "—";
+   }, [isFullscreen]);
+
+   useEffect(() => {
+      const onMove = (e: MouseEvent) => {
+         if (!resizeRef.current) return;
+         const delta = e.clientX - resizeRef.current.startX;
+         const newW = Math.max(60, resizeRef.current.startW + delta);
+         setColumnWidths((p) => ({ ...p, [resizeRef.current!.col]: newW }));
+      };
+      const onUp = () => {
+         resizeRef.current = null;
+         setResizingCol(null);
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      return () => {
+         window.removeEventListener("mousemove", onMove);
+         window.removeEventListener("mouseup", onUp);
+      };
+   }, []);
+
+   // ---------- Mobile handlers ----------
+   const handleSwipeStart = (idx: number) =>
+      setSwipeData({ index: idx, offset: 0, isSwiping: true });
+   const handleSwipeMove = (deltaX: number) => {
+      setSwipeData((prev) => ({
+         ...prev,
+         offset: Math.max(-120, Math.min(120, deltaX * 0.7)),
+      }));
    };
-
-   const getCardSubtitle = (row: T): string => {
-      const sf = columns.find((c) => c.priority === 2);
-      return sf ? String(getNestedValue(row, sf.field) || "") : "";
-   };
-
-   // ========== HIGHLIGHT ==========
-   const highlight = (text: string) => {
-      if (!globalFilter || !text) return text;
-      const escaped = globalFilter.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const re = new RegExp(`(${escaped})`, "gi");
-      return (
-         <>
-            {text.split(re).map((p, i) =>
-               re.test(p) ? (
-                  <mark
-                     key={i}
-                     style={{
-                        background: "rgba(155,34,66,0.18)",
-                        color: C.ruby,
-                        borderRadius: 2,
-                        padding: "0 1px",
-                        fontWeight: 700,
-                     }}>
-                     {p}
-                  </mark>
-               ) : (
-                  p
-               ),
-            )}
-         </>
-      );
-   };
-
-   // ========== PAGINATION PAGES ==========
-   const getPages = () => {
-      if (totalPages <= 7)
-         return Array.from({ length: totalPages }, (_, i) => i + 1);
-      if (currentPage <= 3) return [1, 2, 3, "…", totalPages];
-      if (currentPage >= totalPages - 2)
-         return [1, "…", totalPages - 2, totalPages - 1, totalPages];
-      return [
-         1,
-         "…",
-         currentPage - 1,
-         currentPage,
-         currentPage + 1,
-         "…",
-         totalPages,
-      ];
-   };
-
-   // ========== INLINE EDIT ==========
-   const startEdit = (rowId: string, field: string, value: string) => {
-      if (!enableInlineEdit) return;
-      setEditingCell({ rowId, field });
-      setEditingValue(value);
-   };
-
-   const commitEdit = (row: T, rowIndex: number) => {
-      if (!editingCell || !onCellEdit) {
-         setEditingCell(null);
-         return;
-      }
-      onCellEdit(row, editingCell.field, editingValue);
-      setEditingCell(null);
-   };
-
-   // ========== EXPORT ==========
-   const getExportRows = (dataToExport: T[]) =>
-      dataToExport.map((row) => {
-         const obj: Record<string, any> = {};
-         columns.forEach((col) => {
-            try {
-               const rawVal = getNestedValue(row, col.field);
-               const rv = col.renderField ? col.renderField(rawVal, row) : null;
-               obj[col.headerName] =
-                  rv && (typeof rv === "string" || typeof rv === "number")
-                     ? String(rv)
-                     : col.getFilterValue
-                       ? col.getFilterValue(rawVal)
-                       : rawVal;
-            } catch {
-               obj[col.headerName] = getNestedValue(row, col.field);
-            }
-         });
-         return obj;
-      });
-
-   const exportExcel = (dataToExport: T[]) => {
-      const rows = getExportRows(dataToExport);
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Datos");
-      XLSX.writeFile(wb, `${title || "export"}.xlsx`);
-      setShowExportMenu(false);
-   };
-
-   const exportCSV = (dataToExport: T[]) => {
-      const headers = columns.map((c) => `"${c.headerName}"`).join(",");
-      const rows = dataToExport
-         .map((row) =>
-            columns
-               .map((col) => {
-                  const v = String(
-                     getNestedValue(row, col.field) ?? "",
-                  ).replace(/"/g, '""');
-                  return `"${v}"`;
-               })
-               .join(","),
+   const handleSwipeEnd = (
+      row: T,
+      idx: number,
+      hasPerm: (p: string | string[]) => boolean,
+   ) => {
+      if (swipeData.index !== idx) return;
+      const threshold = 60;
+      const leftAction = mobileConfig?.swipeActions?.left?.[0];
+      const rightAction = mobileConfig?.swipeActions?.right?.[0];
+      if (swipeData.offset > threshold && leftAction) {
+         if (
+            !leftAction.hasPermission ||
+            (Array.isArray(leftAction.hasPermission)
+               ? leftAction.hasPermission.some((p) => hasPerm(p))
+               : hasPerm(leftAction.hasPermission))
          )
-         .join("\n");
-      const blob = new Blob([`\uFEFF${headers}\n${rows}`], {
-         type: "text/csv;charset=utf-8;",
+            leftAction.action(row);
+         setSwipeData({ index: null, offset: 0, isSwiping: false });
+      } else if (swipeData.offset < -threshold && rightAction) {
+         if (
+            !rightAction.hasPermission ||
+            (Array.isArray(rightAction.hasPermission)
+               ? rightAction.hasPermission.some((p) => hasPerm(p))
+               : hasPerm(rightAction.hasPermission))
+         )
+            rightAction.action(row);
+         setSwipeData({ index: null, offset: 0, isSwiping: false });
+      } else setSwipeData((prev) => ({ ...prev, offset: 0 }));
+   };
+
+   const handleApplyFilters = () => {
+      const cleaned: Record<string, any> = {};
+      Object.entries(tempFilters).forEach(([key, value]) => {
+         if (value === "" || value == null) return;
+         if (typeof value === "object" && value !== null) {
+            if (Object.keys(value).length === 0) return;
+            if (value.start || value.end) cleaned[key] = value;
+         } else cleaned[key] = value;
       });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${title || "export"}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setShowExportMenu(false);
+      setActiveFilters(cleaned);
+      setShowFilterModal(false);
+      mobileConfig?.quickFilters?.onApply?.(cleaned);
    };
 
-   const exportJSON = (dataToExport: T[]) => {
-      const rows = dataToExport.map((row) => {
-         const obj: Record<string, any> = {};
-         columns.forEach((col) => {
-            obj[col.field] = getNestedValue(row, col.field);
-         });
-         return obj;
+   const handleClearFilters = () => {
+      const empty: Record<string, any> = {};
+      mobileConfig?.quickFilters?.filters?.forEach((f) => {
+         empty[String(f.field)] = "";
       });
-      const blob = new Blob([JSON.stringify(rows, null, 2)], {
-         type: "application/json",
+      setTempFilters(empty);
+      setActiveFilters({});
+      setShowFilterModal(false);
+      mobileConfig?.quickFilters?.onApply?.({});
+   };
+
+   const closeBottomSheet = () => {
+      setShowBottomSheet(false);
+      setSelectedRowForSheet(null);
+   };
+
+   const formatDateForInput = (value: any): string => {
+      if (!value) return "";
+      if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value))
+         return value;
+      try {
+         const d = new Date(value);
+         if (isNaN(d.getTime())) return "";
+         return d.toISOString().split("T")[0];
+      } catch {
+         return "";
+      }
+   };
+
+   const formatDateRangeForDisplay = (dateStr: string) => {
+      if (!dateStr) return "";
+      const [y, m, d] = dateStr.split("-").map(Number);
+      const date = new Date(Date.UTC(y, m - 1, d));
+      return date.toLocaleDateString("es-ES", {
+         year: "numeric",
+         month: "2-digit",
+         day: "2-digit",
+         timeZone: "UTC",
       });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${title || "export"}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setShowExportMenu(false);
    };
 
-   const printTable = () => {
-      window.print();
-      setShowExportMenu(false);
-   };
+   const getDensityPadding = () =>
+      ({
+         xs: { compact: "p-2", comfortable: "p-3", spacious: "p-4" },
+         sm: { compact: "p-2.5", comfortable: "p-3.5", spacious: "p-5" },
+         md: { compact: "p-3", comfortable: "p-4", spacious: "p-6" },
+      })[screenSize][mobileDensity];
+   const getDensityTextSize = () =>
+      ({
+         xs: {
+            compact: { title: "text-sm", subtitle: "text-xs" },
+            comfortable: { title: "text-base", subtitle: "text-sm" },
+            spacious: { title: "text-lg", subtitle: "text-base" },
+         },
+         sm: {
+            compact: { title: "text-sm", subtitle: "text-xs" },
+            comfortable: { title: "text-base", subtitle: "text-sm" },
+            spacious: { title: "text-lg", subtitle: "text-base" },
+         },
+         md: {
+            compact: { title: "text-base", subtitle: "text-sm" },
+            comfortable: { title: "text-lg", subtitle: "text-base" },
+            spacious: { title: "text-xl", subtitle: "text-lg" },
+         },
+      })[screenSize][mobileDensity];
 
-   // ========== COLUMN STATS ==========
-   const getColumnStats = (col: Column<T>) => {
-      const vals = filteredData
-         .map((r) => Number(getNestedValue(r, col.field)))
-         .filter((v) => !isNaN(v));
-      if (vals.length === 0) return null;
-      return {
-         sum: vals.reduce((a, b) => a + b, 0),
-         avg: vals.reduce((a, b) => a + b, 0) / vals.length,
-         min: Math.min(...vals),
-         max: Math.max(...vals),
-         count: vals.length,
-      };
-   };
-
-   // ========== IMPERATIVE HANDLE ==========
-   useImperativeHandle(
-      ref,
-      () => ({
-         clearAllFilters: clearAll,
-         clearColumnFilters: () => {
-            setColumnFilters({});
-            setCurrentPage(1);
-         },
-         clearGlobalFilter: () => {
-            setGlobalFilter("");
-            setCurrentPage(1);
-         },
-         clearSelection: resetSelection,
-         selectAllRows: (onlyFiltered = false) => {
-            const source = onlyFiltered ? flatData : safeData;
-            const ids = new Set(source.map((r, i) => getRowId(r as any, i)));
-            setSelectedRows(ids);
-            setSelectAll(true);
-            setAllDataSelected(true);
-            onSelectAllRows?.(true, source);
-         },
-         deselectAllRows: () => {
-            resetSelection();
-            onSelectAllRows?.(false, []);
-         },
-         getSelectedRows: () => selectedData,
-         getFilteredRows: () => sortedData,
-         setTheme,
-         setDensity,
-         setViewMode,
-         goToPage: (page: number) =>
-            setCurrentPage(Math.max(1, Math.min(page, totalPages))),
-         goToFirstPage: () => setCurrentPage(1),
-         goToLastPage: () => setCurrentPage(totalPages),
-         exportExcel: (onlySelected = false) =>
-            exportExcel(getExportData(onlySelected, sortedData)),
-         exportCSV: (onlySelected = false) =>
-            exportCSV(getExportData(onlySelected, sortedData)),
-         exportJSON: (onlySelected = false) =>
-            exportJSON(getExportData(onlySelected, sortedData)),
-         toggleFullscreen: () => setIsFullscreen((f) => !f),
-         refresh: () => setColumns((c) => [...c]),
-      }),
-      [selectedData, sortedData, totalPages, safeData, flatData, getRowId],
-   );
-
-   // ==================== RENDER FILTER INPUT ====================
-   const renderFilterInput = (col: Column<T>) => {
+   const renderColumnFilterInput = (col: Column<T>) => {
       const field = col.field;
       const value = columnFilters[field] || "";
-      const sharedInputStyle: React.CSSProperties = {
-         background: "transparent",
-         border: "none",
-         outline: "none",
-         color: C.text1,
-         fontSize: 12,
-         width: "100%",
-         fontFamily: "inherit",
-      };
+      const baseInput =
+         "border-0 p-0 text-xs focus:outline-none focus:ring-0 bg-transparent w-full";
       switch (col.filterType) {
          case "date":
             return (
-               <DateFilterInput
-                  field={field}
+               <input
+                  type="date"
                   value={value}
-                  setColFilter={setColFilter}
-                  C={C}
+                  onChange={(e) => setColFilter(field, e.target.value)}
+                  className={baseInput}
                />
             );
-         case "date-range":
+         case "time":
             return (
-               <DateRangeFilterInput
-                  field={field}
+               <input
+                  type="time"
                   value={value}
-                  setColFilter={setColFilter}
-                  C={C}
+                  onChange={(e) => setColFilter(field, e.target.value)}
+                  className={baseInput}
                />
             );
+         case "date-range": {
+            const [startVal = "", endVal = ""] = value.split("|");
+            return (
+               <div className="flex flex-col w-full gap-1">
+                  <input
+                     type="date"
+                     value={startVal}
+                     onChange={(e) =>
+                        setColFilter(field, `${e.target.value}|${endVal}`)
+                     }
+                     className={baseInput}
+                  />
+                  <input
+                     type="date"
+                     value={endVal}
+                     onChange={(e) =>
+                        setColFilter(field, `${startVal}|${e.target.value}`)
+                     }
+                     className={baseInput}
+                  />
+               </div>
+            );
+         }
          case "select":
             return (
                <select
                   value={value}
                   onChange={(e) => setColFilter(field, e.target.value)}
-                  style={{ ...sharedInputStyle, cursor: "pointer" }}>
+                  className={baseInput}>
                   <option value="">Todos</option>
-                  {col.filterOptions?.map((o) => (
-                     <option key={String(o.value)} value={String(o.value)}>
-                        {o.label}
+                  {col.filterOptions?.map((opt) => (
+                     <option key={String(opt.value)} value={String(opt.value)}>
+                        {opt.label}
                      </option>
                   ))}
                </select>
@@ -1328,68 +1591,56 @@ const CustomTableInner = <T extends object>(
                <select
                   value={value}
                   onChange={(e) => setColFilter(field, e.target.value)}
-                  style={{ ...sharedInputStyle, cursor: "pointer" }}>
+                  className={baseInput}>
                   <option value="">Todos</option>
                   <option value="true">Sí</option>
                   <option value="false">No</option>
                </select>
             );
          case "number-range": {
-            const parts = value.split("|");
-            const mn = parts[0] || "";
-            const mx = parts[1] || "";
+            const [minVal = "", maxVal = ""] = value.split("|");
             return (
-               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+               <div className="flex items-center w-full gap-1">
                   <input
                      type="number"
-                     placeholder="Mín"
-                     value={mn}
+                     placeholder="Min"
+                     value={minVal}
                      onChange={(e) =>
-                        setColFilter(field, `${e.target.value}|${mx}`)
+                        setColFilter(field, `${e.target.value}|${maxVal}`)
                      }
-                     style={{ ...sharedInputStyle, width: "45%" }}
+                     className={`${baseInput} w-14`}
                   />
-                  <span style={{ color: C.text3, fontSize: 10 }}>–</span>
+                  <span className="text-xs text-gray-400">–</span>
                   <input
                      type="number"
-                     placeholder="Máx"
-                     value={mx}
+                     placeholder="Max"
+                     value={maxVal}
                      onChange={(e) =>
-                        setColFilter(field, `${mn}|${e.target.value}`)
+                        setColFilter(field, `${minVal}|${e.target.value}`)
                      }
-                     style={{ ...sharedInputStyle, width: "45%" }}
+                     className={`${baseInput} w-14`}
                   />
                </div>
             );
          }
          case "multi-select": {
-            const sel = value ? value.split(",").filter(Boolean) : [];
+            const selected = value ? value.split(",").filter(Boolean) : [];
             return (
-               <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-                  {col.filterOptions?.map((o) => {
-                     const active = sel.includes(String(o.value));
-                     const next = active
-                        ? sel.filter((v) => v !== String(o.value))
-                        : [...sel, String(o.value)];
+               <div className="flex flex-wrap gap-1">
+                  {col.filterOptions?.map((opt) => {
+                     const active = selected.includes(opt.value);
                      return (
                         <button
-                           key={String(o.value)}
+                           key={opt.value}
                            onMouseDown={(e) => {
                               e.preventDefault();
+                              const next = active
+                                 ? selected.filter((v) => v !== opt.value)
+                                 : [...selected, opt.value];
                               setColFilter(field, next.join(","));
                            }}
-                           style={{
-                              padding: "2px 8px",
-                              borderRadius: 100,
-                              fontSize: 10,
-                              fontWeight: 600,
-                              cursor: "pointer",
-                              border: "none",
-                              background: active ? C.ruby : C.border,
-                              color: active ? "#fff" : C.text2,
-                              transition: "all 0.15s",
-                           }}>
-                           {o.label}
+                           className={`text-[10px] px-2 py-0.5 rounded-full border transition-all ${active ? "bg-[#9B2242] text-white border-[#9B2242]" : "bg-white text-gray-600 border-gray-300 hover:border-[#9B2242]"}`}>
+                           {opt.label}
                         </button>
                      );
                   })}
@@ -1398,18 +1649,48 @@ const CustomTableInner = <T extends object>(
          }
          default:
             return (
-               <input
-                  type="text"
-                  placeholder="Filtrar…"
+               <DebouncedTextInput
                   value={value}
-                  onChange={(e) => setColFilter(field, e.target.value)}
-                  style={sharedInputStyle}
+                  onChange={(val) => setColFilter(field, val)}
+                  placeholder="Filtrar..."
+                  className={`${baseInput} min-w-[100px]`}
                />
             );
       }
    };
 
-   // ==================== RENDER ROWS ====================
+   const DebouncedTextInput = ({
+      value,
+      onChange,
+      placeholder,
+      className,
+   }: {
+      value: string;
+      onChange: (val: string) => void;
+      placeholder?: string;
+      className?: string;
+   }) => {
+      const [local, setLocal] = useState(value);
+      const timer = useRef<any>(null);
+      useEffect(() => {
+         setLocal(value);
+      }, [value]);
+      return (
+         <input
+            type="text"
+            placeholder={placeholder}
+            value={local}
+            onChange={(e) => {
+               setLocal(e.target.value);
+               if (timer.current) clearTimeout(timer.current);
+               timer.current = setTimeout(() => onChange(e.target.value), 300);
+            }}
+            className={className}
+         />
+      );
+   };
+
+   // ---------- Render table rows (desktop) ----------
    const renderRows = (
       rows: T[],
       level = 0,
@@ -1428,7 +1709,6 @@ const CustomTableInner = <T extends object>(
          const isFlashing = flashRow === rowId;
          const isHovered = hoveredRow === rowId;
          const isRowExpanded = rowExpanded.has(rowId);
-
          let bgColor = C.white;
          if (isFlashing) bgColor = C.rubyLight;
          else if (isPinned) bgColor = C.goldLight;
@@ -1457,10 +1737,14 @@ const CustomTableInner = <T extends object>(
                   {showExpandCol && (
                      <td
                         style={{
-                           padding: "0 4px 0 12px",
-                           borderBottom: `1px solid ${C.border}`,
                            width: 52,
-                           paddingLeft: 12 + level * indentSize,
+                           padding: "0 4px 0 12px",
+                           background: C.thead,
+                           borderBottom: `2px solid ${C.theadBorder}`,
+                           position: "sticky",
+                           top: 0,
+                           left: 0, // ← nuevo
+                           zIndex: 30,
                         }}>
                         <div
                            style={{
@@ -1502,7 +1786,6 @@ const CustomTableInner = <T extends object>(
                         </div>
                      </td>
                   )}
-
                   {normalColumns.map((col) => {
                      const cellKey = `${rowId}-${col.field}`;
                      const isEditing =
@@ -1513,7 +1796,6 @@ const CustomTableInner = <T extends object>(
                      const customStyle = col.conditionalStyle
                         ? col.conditionalStyle(row)
                         : {};
-
                      return (
                         <td
                            key={col.field}
@@ -1594,9 +1876,6 @@ const CustomTableInner = <T extends object>(
                                              fontSize: 10,
                                              fontWeight: 700,
                                              flexShrink: 0,
-                                             display: "flex",
-                                             alignItems: "center",
-                                             gap: 2,
                                           }}>
                                           <FiCheck size={10} /> Copiado
                                        </motion.span>
@@ -1607,13 +1886,17 @@ const CustomTableInner = <T extends object>(
                         </td>
                      );
                   })}
-
                   {showActionsCol && (
                      <td
                         style={{
                            padding: "8px 14px",
                            borderBottom: `1px solid ${C.border}`,
                            textAlign: "right",
+                           position: "sticky", // ← sticky funciona en td
+                           right: 0,
+                           background: "inherit", // ← hereda el color de la fila (striped, selected, etc.)
+                           zIndex: 1,
+                           boxShadow: `-2px 0 8px rgba(0,0,0,0.05)`,
                         }}
                         onClick={(e) => e.stopPropagation()}>
                         <div
@@ -1654,58 +1937,12 @@ const CustomTableInner = <T extends object>(
                      </td>
                   )}
                </motion.tr>
-
-               {/* Expanded row for "expanded" visibility columns */}
                <AnimatePresence>
                   {isRowExpanded && expandedColumns.length > 0 && (
                      <motion.tr
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        style={{ background: C.surface }}>
-                        {showExpandCol && (
-                           <td
-                              style={{ borderBottom: `1px solid ${C.border}` }}
-                           />
-                        )}
-                        {normalColumns.map((col) => {
-                           const rawVal = getNestedValue(row, col.field);
-                           const customStyle = col.conditionalStyle
-                              ? col.conditionalStyle(row)
-                              : {};
-                           // Show the expanded-visibility columns as an inline block within the normal cell
-                           return (
-                              <td
-                                 key={col.field}
-                                 style={{
-                                    padding: dp.cell,
-                                    borderBottom: `1px solid ${C.border}`,
-                                    fontSize: density === "compact" ? 12 : 13,
-                                    color: C.text1,
-                                    textAlign: col.align || "left",
-                                    verticalAlign: "middle",
-                                    ...customStyle,
-                                 }}
-                              />
-                           );
-                        })}
-                        {/* Render expanded columns as a full row below */}
-                        {showActionsCol && (
-                           <td
-                              style={{ borderBottom: `1px solid ${C.border}` }}
-                           />
-                        )}
-                     </motion.tr>
-                  )}
-               </AnimatePresence>
-
-               {/* True expanded-column row */}
-               <AnimatePresence>
-                  {isRowExpanded && expandedColumns.length > 0 && (
-                     <motion.tr
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
                         style={{ background: C.surface }}>
                         <td
                            colSpan={
@@ -1761,8 +1998,6 @@ const CustomTableInner = <T extends object>(
                      </motion.tr>
                   )}
                </AnimatePresence>
-
-               {/* Recursive children */}
                {isExpanded &&
                   childrenField &&
                   renderRows(
@@ -1774,513 +2009,459 @@ const CustomTableInner = <T extends object>(
          );
       });
 
-   // ==================== RENDER TABLE ====================
-   const renderTable = () => {
+   const renderDesktopTable = () => {
       const hasAgg = normalColumns.some((c) => c.aggregation);
       const totalColumns =
          (showExpandCol ? 1 : 0) +
          normalColumns.length +
          (showActionsCol ? 1 : 0);
-
       return (
-         <div style={{ overflowX: "auto" }}>
-            <table
-               style={{
-                  width: "100%",
-                  borderCollapse: "separate",
-                  borderSpacing: 0,
-               }}>
-               <thead>
-                  <tr>
-                     {showExpandCol && (
+         <table
+            style={{
+               width: "100%",
+               borderCollapse: "separate",
+               borderSpacing: 0,
+            }}>
+            <thead>
+               <tr>
+                  {showExpandCol && (
+                     <th
+                        style={{
+                           padding: "0 4px 0 12px",
+                           borderBottom: `1px solid ${C.border}`,
+                           width: 52,
+                           paddingLeft: 12 + level * indentSize,
+                           position: "sticky", // ← nuevo
+                           left: 0, // ← nuevo
+                           background: "inherit",
+                           zIndex: 1,
+                        }}>
+                        {enableRowSelection && (
+                           <input
+                              type="checkbox"
+                              checked={selectAll}
+                              ref={(el) => {
+                                 if (el)
+                                    el.indeterminate =
+                                       selectedRows.size > 0 &&
+                                       !selectAll &&
+                                       !allDataSelected;
+                              }}
+                              onChange={handleSelectAll}
+                              style={{
+                                 accentColor: C.ruby,
+                                 cursor: "pointer",
+                                 width: 14,
+                                 height: 14,
+                              }}
+                           />
+                        )}
+                     </th>
+                  )}
+                  {normalColumns.map((col) => {
+                     const isSorted = sortConfig.field === col.field;
+                     const hasFilter = !!columnFilters[col.field];
+                     const hasFixedWidth = columnWidths[col.field] || col.width;
+                     const isDragTarget = dragOverCol === col.field;
+                     const isDragging = dragCol === col.field;
+                     return (
                         <th
+                           key={col.field}
+                           draggable={enableColumnReorder}
+                           onDragStart={() => handleDragStart(col.field)}
+                           onDragOver={(e) => handleDragOver(e, col.field)}
+                           onDrop={() => handleDrop(col.field)}
+                           onDragEnd={handleDragEnd}
                            style={{
-                              width: 52,
-                              padding: "0 4px 0 12px",
-                              background: C.thead,
-                              borderBottom: `2px solid ${C.theadBorder}`,
+                              padding: 0,
+                              textAlign: col.align || "left",
+                              background: isDragTarget ? C.rubyLight : C.thead,
+                              borderBottom: `2px solid ${isSorted ? C.ruby : C.theadBorder}`,
+                              borderLeft: isDragTarget
+                                 ? `2px solid ${C.ruby}`
+                                 : "none",
                               position: "sticky",
                               top: 0,
                               zIndex: 20,
+                              ...(hasFixedWidth
+                                 ? { width: hasFixedWidth }
+                                 : {}),
+                              minWidth: col.minWidth || 80,
+                              transition: "all 0.2s",
+                              opacity: isDragging ? 0.5 : 1,
+                              cursor: enableColumnReorder ? "grab" : "default",
                            }}>
-                           {enableRowSelection && (
-                              <input
-                                 type="checkbox"
-                                 checked={selectAll}
-                                 ref={(el) => {
-                                    if (el)
-                                       el.indeterminate =
-                                          selectedRows.size > 0 &&
-                                          !selectAll &&
-                                          !allDataSelected;
-                                 }}
-                                 onChange={handleSelectAll}
+                           <div
+                              style={{
+                                 padding: dp.header,
+                                 display: "flex",
+                                 alignItems: "center",
+                                 justifyContent: "space-between",
+                                 paddingRight: 28,
+                                 gap: 4,
+                              }}>
+                              <button
+                                 onClick={() =>
+                                    col.sortable !== false &&
+                                    handleSort(col.field)
+                                 }
                                  style={{
-                                    accentColor: C.ruby,
-                                    cursor: "pointer",
-                                    width: 14,
-                                    height: 14,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 5,
+                                    background: "none",
+                                    border: "none",
+                                    cursor:
+                                       col.sortable !== false
+                                          ? "pointer"
+                                          : "default",
+                                    padding: 0,
+                                    color: isSorted ? C.ruby : C.text2,
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.07em",
+                                    fontFamily: "inherit",
+                                 }}>
+                                 {col.headerName}
+                                 {col.sortable !== false && (
+                                    <span
+                                       style={{
+                                          display: "flex",
+                                          flexDirection: "column",
+                                          opacity: isSorted ? 1 : 0.35,
+                                       }}>
+                                       <FiChevronUp
+                                          size={9}
+                                          style={{
+                                             color:
+                                                isSorted &&
+                                                sortConfig.direction === "asc"
+                                                   ? C.ruby
+                                                   : C.text3,
+                                          }}
+                                       />
+                                       <FiChevronDown
+                                          size={9}
+                                          style={{
+                                             color:
+                                                isSorted &&
+                                                sortConfig.direction === "desc"
+                                                   ? C.ruby
+                                                   : C.text3,
+                                          }}
+                                       />
+                                    </span>
+                                 )}
+                              </button>
+                              {enableGroupBy && col.groupable && (
+                                 <button
+                                    onClick={() =>
+                                       setGroupBy(
+                                          groupBy?.field === col.field
+                                             ? null
+                                             : {
+                                                  field: col.field,
+                                                  direction: "asc",
+                                               },
+                                       )
+                                    }
+                                    title="Agrupar por esta columna"
+                                    style={{
+                                       background: "none",
+                                       border: "none",
+                                       cursor: "pointer",
+                                       color:
+                                          groupBy?.field === col.field
+                                             ? C.ruby
+                                             : C.text3,
+                                       padding: 0,
+                                       display: "flex",
+                                    }}>
+                                    <FiLayout size={11} />
+                                 </button>
+                              )}
+                           </div>
+                           <div
+                              style={{
+                                 margin: dp.filterMargin,
+                                 background: hasFilter ? C.rubyLight : C.white,
+                                 border: `1px solid ${hasFilter ? "rgba(155,34,66,0.25)" : C.border}`,
+                                 borderRadius: C.r4,
+                                 padding: "5px 10px",
+                                 display: "flex",
+                                 alignItems: "center",
+                                 gap: 6,
+                                 transition: "all 0.2s",
+                              }}>
+                              {col.filterType !== "date-range" &&
+                                 col.filterType !== "multi-select" && (
+                                    <FiSearch
+                                       size={10}
+                                       style={{
+                                          color: hasFilter ? C.ruby : C.text3,
+                                          flexShrink: 0,
+                                       }}
+                                    />
+                                 )}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                 {renderColumnFilterInput(col)}
+                              </div>
+                              {hasFilter && (
+                                 <button
+                                    onClick={() => clearColFilter(col.field)}
+                                    style={{
+                                       background: "none",
+                                       border: "none",
+                                       cursor: "pointer",
+                                       padding: 0,
+                                       display: "flex",
+                                       color: C.text3,
+                                    }}>
+                                    <FiX size={10} />
+                                 </button>
+                              )}
+                           </div>
+                           {enableColumnResize && col.resizable !== false && (
+                              <div
+                                 onMouseDown={(e) => startResize(col.field, e)}
+                                 style={{
+                                    position: "absolute",
+                                    right: 0,
+                                    top: 0,
+                                    bottom: 0,
+                                    width: 6,
+                                    cursor: "col-resize",
+                                    background:
+                                       resizingCol === col.field
+                                          ? C.ruby
+                                          : "transparent",
+                                    transition: "background 0.15s",
+                                    zIndex: 1,
                                  }}
                               />
                            )}
                         </th>
-                     )}
-
-                     {normalColumns.map((col) => {
-                        const isSorted = sortConfig.field === col.field;
-                        const hasFilter = !!columnFilters[col.field];
-                        const hasFixedWidth =
-                           columnWidths[col.field] || col.width;
-                        const isDragTarget = dragOverCol === col.field;
-                        const isDragging = dragCol === col.field;
-
-                        return (
-                           <th
-                              key={col.field}
-                              draggable={enableColumnReorder}
-                              onDragStart={() => handleDragStart(col.field)}
-                              onDragOver={(e) => handleDragOver(e, col.field)}
-                              onDrop={() => handleDrop(col.field)}
-                              onDragEnd={handleDragEnd}
-                              style={{
-                                 padding: 0,
-                                 textAlign: col.align || "left",
-                                 background: isDragTarget
-                                    ? C.rubyLight
-                                    : C.thead,
-                                 borderBottom: `2px solid ${
-                                    isSorted ? C.ruby : C.theadBorder
-                                 }`,
-                                 borderLeft: isDragTarget
-                                    ? `2px solid ${C.ruby}`
-                                    : "none",
-                                 position: "sticky",
-                                 top: 0,
-                                 zIndex: 20,
-                                 ...(hasFixedWidth
-                                    ? { width: hasFixedWidth }
-                                    : {}),
-                                 minWidth: col.minWidth || 80,
-                                 transition: "all 0.2s",
-                                 opacity: isDragging ? 0.5 : 1,
-                                 cursor: enableColumnReorder
-                                    ? "grab"
-                                    : "default",
-                              }}>
-                              <div
-                                 style={{
-                                    padding: dp.header,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    paddingRight: 28,
-                                    gap: 4,
-                                 }}>
-                                 <button
-                                    onClick={() =>
-                                       col.sortable !== false &&
-                                       handleSort(col.field)
-                                    }
-                                    style={{
-                                       display: "flex",
-                                       alignItems: "center",
-                                       gap: 5,
-                                       background: "none",
-                                       border: "none",
-                                       cursor:
-                                          col.sortable !== false
-                                             ? "pointer"
-                                             : "default",
-                                       padding: 0,
-                                       color: isSorted ? C.ruby : C.text2,
-                                       fontSize: 11,
-                                       fontWeight: 700,
-                                       textTransform: "uppercase",
-                                       letterSpacing: "0.07em",
-                                       fontFamily: "inherit",
-                                    }}>
-                                    {col.headerName}
-                                    {col.sortable !== false && (
-                                       <span
-                                          style={{
-                                             display: "flex",
-                                             flexDirection: "column",
-                                             opacity: isSorted ? 1 : 0.35,
-                                          }}>
-                                          <FiChevronUp
-                                             size={9}
-                                             style={{
-                                                color:
-                                                   isSorted &&
-                                                   sortConfig.direction ===
-                                                      "asc"
-                                                      ? C.ruby
-                                                      : C.text3,
-                                             }}
-                                          />
-                                          <FiChevronDown
-                                             size={9}
-                                             style={{
-                                                color:
-                                                   isSorted &&
-                                                   sortConfig.direction ===
-                                                      "desc"
-                                                      ? C.ruby
-                                                      : C.text3,
-                                             }}
-                                          />
-                                       </span>
-                                    )}
-                                 </button>
-                                 {enableGroupBy && col.groupable && (
-                                    <button
-                                       onClick={() =>
-                                          setGroupBy(
-                                             groupBy?.field === col.field
-                                                ? null
-                                                : {
-                                                     field: col.field,
-                                                     direction: "asc",
-                                                  },
-                                          )
-                                       }
-                                       title="Agrupar por esta columna"
-                                       style={{
-                                          background: "none",
-                                          border: "none",
-                                          cursor: "pointer",
-                                          color:
-                                             groupBy?.field === col.field
-                                                ? C.ruby
-                                                : C.text3,
-                                          padding: 0,
-                                          display: "flex",
-                                       }}>
-                                       <FiLayout size={11} />
-                                    </button>
-                                 )}
-                              </div>
-
-                              <div
-                                 style={{
-                                    margin: dp.filterMargin,
-                                    background: hasFilter
-                                       ? C.rubyLight
-                                       : C.white,
-                                    border: `1px solid ${
-                                       hasFilter
-                                          ? "rgba(155,34,66,0.25)"
-                                          : C.border
-                                    }`,
-                                    borderRadius: C.r4,
-                                    padding: "5px 10px",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 6,
-                                    transition: "all 0.2s",
-                                 }}>
-                                 {col.filterType !== "date-range" &&
-                                    col.filterType !== "multi-select" && (
-                                       <FiSearch
-                                          size={10}
-                                          style={{
-                                             color: hasFilter
-                                                ? C.ruby
-                                                : C.text3,
-                                             flexShrink: 0,
-                                          }}
-                                       />
-                                    )}
-                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                    {renderFilterInput(col)}
-                                 </div>
-                                 {hasFilter && (
-                                    <button
-                                       onClick={() => clearColFilter(col.field)}
-                                       style={{
-                                          background: "none",
-                                          border: "none",
-                                          cursor: "pointer",
-                                          padding: 0,
-                                          display: "flex",
-                                          color: C.text3,
-                                       }}>
-                                       <FiX size={10} />
-                                    </button>
-                                 )}
-                              </div>
-
-                              {enableColumnResize &&
-                                 col.resizable !== false && (
-                                    <div
-                                       onMouseDown={(e) =>
-                                          startResize(col.field, e)
-                                       }
-                                       style={{
-                                          position: "absolute",
-                                          right: 0,
-                                          top: 0,
-                                          bottom: 0,
-                                          width: 6,
-                                          cursor: "col-resize",
-                                          background:
-                                             resizingCol === col.field
-                                                ? C.ruby
-                                                : "transparent",
-                                          transition: "background 0.15s",
-                                          zIndex: 1,
-                                       }}
-                                    />
-                                 )}
-                           </th>
-                        );
-                     })}
-
-                     {showActionsCol && (
-                        <th
+                     );
+                  })}
+                  {showActionsCol && (
+                     <th
+                        style={{
+                           padding: `${dp.header} 14px`,
+                           textAlign: "right",
+                           background: C.thead,
+                           borderBottom: `2px solid ${C.theadBorder}`,
+                           position: "sticky",
+                           top: 0,
+                           right: 0, // ← nuevo
+                           zIndex: 30, // ← más alto que el resto (eran 20)
+                           boxShadow: `-2px 0 8px rgba(0,0,0,0.06)`, // ← sombra separadora
+                           fontSize: 11,
+                           fontWeight: 700,
+                           textTransform: "uppercase",
+                           letterSpacing: "0.07em",
+                           color: C.text2,
+                           width: "auto",
+                        }}>
+                        Acciones
+                        <div style={{ height: 32 }} />
+                     </th>
+                  )}
+               </tr>
+            </thead>
+            <tbody>
+               {enableRowPinning && pinnedRowsData.length > 0 && (
+                  <>
+                     {renderRows(pinnedRowsData, 0, 0)}
+                     <tr>
+                        <td
+                           colSpan={totalColumns}
                            style={{
-                              padding: `${dp.header} 14px`,
-                              textAlign: "right",
-                              background: C.thead,
-                              borderBottom: `2px solid ${C.theadBorder}`,
-                              position: "sticky",
-                              top: 0,
-                              zIndex: 20,
-                              fontSize: 11,
+                              padding: "2px 16px",
+                              background: C.goldLight,
+                              borderBottom: `2px dashed ${C.gold}`,
+                              fontSize: 10,
+                              color: C.gold,
                               fontWeight: 700,
                               textTransform: "uppercase",
-                              letterSpacing: "0.07em",
-                              color: C.text2,
-                              width: "auto",
                            }}>
-                           Acciones
-                           <div style={{ height: 32 }} />
-                        </th>
+                           ↑ Filas ancladas — filas normales ↓
+                        </td>
+                     </tr>
+                  </>
+               )}
+               {groupedData
+                  ? groupedData.map(([groupKey, groupRows]) => {
+                       const gPaged = groupRows.slice(0, rowsPerPage);
+                       const groupRowIds = groupRows.map((r, i) =>
+                          getRowId(r as any, i),
+                       );
+                       const allGroupSelected = groupRowIds.every((id) =>
+                          selectedRows.has(id),
+                       );
+                       const someGroupSelected = groupRowIds.some((id) =>
+                          selectedRows.has(id),
+                       );
+                       const toggleGroupSel = () =>
+                          setSelectedRows((prev) => {
+                             const next = new Set(prev);
+                             if (allGroupSelected)
+                                groupRowIds.forEach((id) => next.delete(id));
+                             else groupRowIds.forEach((id) => next.add(id));
+                             return next;
+                          });
+                       return (
+                          <React.Fragment key={groupKey}>
+                             <tr>
+                                <td
+                                   colSpan={totalColumns}
+                                   style={{
+                                      padding: "8px 16px",
+                                      background: C.rubyLight,
+                                      borderBottom: `1px solid ${C.border}`,
+                                      borderTop: `2px solid rgba(155,34,66,0.15)`,
+                                   }}>
+                                   <div
+                                      style={{
+                                         display: "flex",
+                                         alignItems: "center",
+                                         gap: 8,
+                                      }}>
+                                      {enableGroupSelection && (
+                                         <input
+                                            type="checkbox"
+                                            checked={allGroupSelected}
+                                            ref={(el) => {
+                                               if (el)
+                                                  el.indeterminate =
+                                                     someGroupSelected &&
+                                                     !allGroupSelected;
+                                            }}
+                                            onChange={toggleGroupSel}
+                                            style={{
+                                               accentColor: C.ruby,
+                                               cursor: "pointer",
+                                               width: 14,
+                                               height: 14,
+                                               flexShrink: 0,
+                                            }}
+                                         />
+                                      )}
+                                      <span
+                                         style={{
+                                            fontWeight: 800,
+                                            fontSize: 12,
+                                            color: C.ruby,
+                                         }}>
+                                         {columns.find(
+                                            (c) => c.field === groupBy?.field,
+                                         )?.headerName || groupBy?.field}
+                                         :
+                                      </span>
+                                      <span
+                                         style={{
+                                            fontWeight: 600,
+                                            fontSize: 13,
+                                            color: C.text1,
+                                         }}>
+                                         {groupKey}
+                                      </span>
+                                      <span
+                                         style={{
+                                            fontSize: 11,
+                                            color: C.text3,
+                                            marginLeft: 4,
+                                         }}>
+                                         ({groupRows.length} registros
+                                         {someGroupSelected && (
+                                            <span
+                                               style={{
+                                                  color: C.ruby,
+                                                  fontWeight: 700,
+                                               }}>
+                                               {" "}
+                                               ·{" "}
+                                               {
+                                                  groupRowIds.filter((id) =>
+                                                     selectedRows.has(id),
+                                                  ).length
+                                               }{" "}
+                                               sel.
+                                            </span>
+                                         )}
+                                         )
+                                      </span>
+                                   </div>
+                                </td>
+                             </tr>
+                             {renderRows(gPaged, 0, 0)}
+                          </React.Fragment>
+                       );
+                    })
+                  : renderRows(currentRows, 0, startIndex)}
+            </tbody>
+            {hasAgg && enableAggregations && (
+               <tfoot>
+                  <tr style={{ background: C.thead }}>
+                     {showExpandCol && (
+                        <td
+                           style={{ borderTop: `2px solid ${C.theadBorder}` }}
+                        />
+                     )}
+                     {normalColumns.map((col) => {
+                        const agg = aggregations[col.field];
+                        return (
+                           <td
+                              key={col.field}
+                              style={{
+                                 padding: "10px 16px",
+                                 borderTop: `2px solid ${C.theadBorder}`,
+                                 fontSize: 12,
+                                 fontWeight: 700,
+                                 color: agg ? C.ruby : C.text3,
+                                 textAlign: col.align || "left",
+                                 ...(columnWidths[col.field] || col.width
+                                    ? {
+                                         width:
+                                            columnWidths[col.field] ||
+                                            col.width,
+                                      }
+                                    : {}),
+                                 minWidth: col.minWidth || 80,
+                              }}>
+                              {agg ? (
+                                 <div>
+                                    <div
+                                       style={{
+                                          fontSize: 9,
+                                          textTransform: "uppercase",
+                                          letterSpacing: "0.07em",
+                                          color: C.text3,
+                                          marginBottom: 2,
+                                       }}>
+                                       {col.aggregation}
+                                    </div>
+                                    {agg}
+                                 </div>
+                              ) : (
+                                 ""
+                              )}
+                           </td>
+                        );
+                     })}
+                     {showActionsCol && (
+                        <td
+                           style={{ borderTop: `2px solid ${C.theadBorder}` }}
+                        />
                      )}
                   </tr>
-               </thead>
-               <tbody>
-                  {enableRowPinning && pinnedRowsData.length > 0 && (
-                     <>
-                        {renderRows(pinnedRowsData, 0, 0)}
-                        <tr>
-                           <td
-                              colSpan={totalColumns}
-                              style={{
-                                 padding: "2px 16px",
-                                 background: C.goldLight,
-                                 borderBottom: `2px dashed ${C.gold}`,
-                                 fontSize: 10,
-                                 color: C.gold,
-                                 fontWeight: 700,
-                                 textTransform: "uppercase",
-                              }}>
-                              ↑ Filas ancladas — filas normales ↓
-                           </td>
-                        </tr>
-                     </>
-                  )}
-
-                  {groupedData
-                     ? groupedData.map(([groupKey, groupRows]) => {
-                          const gPaged = groupRows.slice(0, rowsPerPage);
-                          const groupRowIds = groupRows.map((r, i) =>
-                             getRowId(r as any, i),
-                          );
-                          const allGroupSelected = groupRowIds.every((id) =>
-                             selectedRows.has(id),
-                          );
-                          const someGroupSelected = groupRowIds.some((id) =>
-                             selectedRows.has(id),
-                          );
-                          const toggleGroupSel = () =>
-                             setSelectedRows((prev) => {
-                                const next = new Set(prev);
-                                if (allGroupSelected)
-                                   groupRowIds.forEach((id) => next.delete(id));
-                                else groupRowIds.forEach((id) => next.add(id));
-                                return next;
-                             });
-                          return (
-                             <React.Fragment key={groupKey}>
-                                <tr>
-                                   <td
-                                      colSpan={totalColumns}
-                                      style={{
-                                         padding: "8px 16px",
-                                         background: C.rubyLight,
-                                         borderBottom: `1px solid ${C.border}`,
-                                         borderTop: `2px solid rgba(155,34,66,0.15)`,
-                                      }}>
-                                      <div
-                                         style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            gap: 8,
-                                         }}>
-                                         {enableGroupSelection && (
-                                            <input
-                                               type="checkbox"
-                                               checked={allGroupSelected}
-                                               ref={(el) => {
-                                                  if (el)
-                                                     el.indeterminate =
-                                                        someGroupSelected &&
-                                                        !allGroupSelected;
-                                               }}
-                                               onChange={toggleGroupSel}
-                                               style={{
-                                                  accentColor: C.ruby,
-                                                  cursor: "pointer",
-                                                  width: 14,
-                                                  height: 14,
-                                                  flexShrink: 0,
-                                               }}
-                                            />
-                                         )}
-                                         <span
-                                            style={{
-                                               fontWeight: 800,
-                                               fontSize: 12,
-                                               color: C.ruby,
-                                            }}>
-                                            {columns.find(
-                                               (c) =>
-                                                  c.field === groupBy?.field,
-                                            )?.headerName || groupBy?.field}
-                                            :
-                                         </span>
-                                         <span
-                                            style={{
-                                               fontWeight: 600,
-                                               fontSize: 13,
-                                               color: C.text1,
-                                            }}>
-                                            {groupKey}
-                                         </span>
-                                         <span
-                                            style={{
-                                               fontSize: 11,
-                                               color: C.text3,
-                                               marginLeft: 4,
-                                            }}>
-                                            ({groupRows.length} registros
-                                            {someGroupSelected && (
-                                               <span
-                                                  style={{
-                                                     color: C.ruby,
-                                                     fontWeight: 700,
-                                                  }}>
-                                                  {" "}
-                                                  ·{" "}
-                                                  {
-                                                     groupRowIds.filter((id) =>
-                                                        selectedRows.has(id),
-                                                     ).length
-                                                  }{" "}
-                                                  sel.
-                                               </span>
-                                            )}
-                                            )
-                                         </span>
-                                         {enableGroupSelection &&
-                                            !allGroupSelected && (
-                                               <button
-                                                  onClick={toggleGroupSel}
-                                                  style={{
-                                                     marginLeft: "auto",
-                                                     padding: "3px 10px",
-                                                     borderRadius: 100,
-                                                     fontSize: 10,
-                                                     fontWeight: 700,
-                                                     border: `1px solid rgba(155,34,66,0.3)`,
-                                                     background:
-                                                        "rgba(155,34,66,0.08)",
-                                                     color: C.ruby,
-                                                     cursor: "pointer",
-                                                     whiteSpace: "nowrap",
-                                                  }}>
-                                                  Sel. grupo
-                                               </button>
-                                            )}
-                                      </div>
-                                   </td>
-                                </tr>
-                                {renderRows(gPaged, 0, 0)}
-                             </React.Fragment>
-                          );
-                       })
-                     : renderRows(currentRows, 0, startIndex)}
-               </tbody>
-
-               {hasAgg && enableAggregations && (
-                  <tfoot>
-                     <tr style={{ background: C.thead }}>
-                        {showExpandCol && (
-                           <td
-                              style={{
-                                 borderTop: `2px solid ${C.theadBorder}`,
-                              }}
-                           />
-                        )}
-                        {normalColumns.map((col) => {
-                           const agg = aggregations[col.field];
-                           return (
-                              <td
-                                 key={col.field}
-                                 style={{
-                                    padding: "10px 16px",
-                                    borderTop: `2px solid ${C.theadBorder}`,
-                                    fontSize: 12,
-                                    fontWeight: 700,
-                                    color: agg ? C.ruby : C.text3,
-                                    textAlign: col.align || "left",
-                                    ...(columnWidths[col.field] || col.width
-                                       ? {
-                                            width:
-                                               columnWidths[col.field] ||
-                                               col.width,
-                                         }
-                                       : {}),
-                                    minWidth: col.minWidth || 80,
-                                 }}>
-                                 {agg ? (
-                                    <div>
-                                       <div
-                                          style={{
-                                             fontSize: 9,
-                                             textTransform: "uppercase",
-                                             letterSpacing: "0.07em",
-                                             color: C.text3,
-                                             marginBottom: 2,
-                                          }}>
-                                          {col.aggregation}
-                                       </div>
-                                       {agg}
-                                    </div>
-                                 ) : (
-                                    ""
-                                 )}
-                              </td>
-                           );
-                        })}
-                        {showActionsCol && (
-                           <td
-                              style={{
-                                 borderTop: `2px solid ${C.theadBorder}`,
-                              }}
-                           />
-                        )}
-                     </tr>
-                  </tfoot>
-               )}
-            </table>
-         </div>
+               </tfoot>
+            )}
+         </table>
       );
    };
 
-   // ==================== RENDER CARDS ====================
-   const renderCards = () => (
+   const renderDesktopCards = () => (
       <div
          style={{
             display: "grid",
@@ -2441,8 +2622,7 @@ const CustomTableInner = <T extends object>(
       </div>
    );
 
-   // ==================== RENDER COMPACT ====================
-   const renderCompact = () => (
+   const renderDesktopCompact = () => (
       <div style={{ padding: "8px 16px" }}>
          {currentRows.map((row, idx) => {
             const rowId = getRowId(row as any, startIndex + idx);
@@ -2468,9 +2648,7 @@ const CustomTableInner = <T extends object>(
                         : isHovered
                           ? C.hover
                           : "transparent",
-                     border: `1px solid ${
-                        isSelected ? "rgba(155,34,66,0.2)" : "transparent"
-                     }`,
+                     border: `1px solid ${isSelected ? "rgba(155,34,66,0.2)" : "transparent"}`,
                      cursor: "pointer",
                      transition: "all 0.12s",
                      marginBottom: 2,
@@ -2512,10 +2690,7 @@ const CustomTableInner = <T extends object>(
                         flex: 1,
                         minWidth: 0,
                         display: "grid",
-                        gridTemplateColumns: `repeat(${Math.min(
-                           normalColumns.length,
-                           4,
-                        )}, 1fr)`,
+                        gridTemplateColumns: `repeat(${Math.min(normalColumns.length, 4)}, 1fr)`,
                         gap: 8,
                      }}>
                      {normalColumns.slice(0, 4).map((col) => (
@@ -2563,106 +2738,633 @@ const CustomTableInner = <T extends object>(
       </div>
    );
 
-   // ==================== LOADING / ERROR / EMPTY ====================
-   const renderLoading = () => (
-      <div
-         style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "80px 0",
-            gap: 16,
-         }}>
+   // ---------- Mobile views ----------
+   const renderMobileListView = () => {
+      const hasPerm = (p: string | string[]) => true;
+      const padding = getDensityPadding();
+      const textSize = getDensityTextSize();
+      return (
          <motion.div
-            style={{
-               width: 36,
-               height: 36,
-               borderRadius: "50%",
-               border: `2.5px solid ${C.border}`,
-               borderTopColor: C.ruby,
-            }}
-            animate={{ rotate: 360 }}
-            transition={{ duration: 0.85, repeat: Infinity, ease: "linear" }}
-         />
-         <span style={{ fontSize: 13, color: C.text3, fontWeight: 500 }}>
-            Cargando registros…
-         </span>
-      </div>
-   );
-
-   const renderError = () => (
-      <div
-         style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-            padding: "64px 0",
-            color: "#ef4444",
-         }}>
-         <FiAlertCircle size={18} />
-         <span style={{ fontSize: 14, fontWeight: 500 }}>{error}</span>
-      </div>
-   );
-
-   const renderEmpty = () => (
-      <motion.div
-         initial={{ opacity: 0, y: 20 }}
-         animate={{ opacity: 1, y: 0 }}
-         style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "60px 20px",
-            color: C.text2,
-         }}>
-         <motion.div
-            animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}>
-            <FiInbox size={48} color={C.text3} />
+            className={`space-y-3 ${screenSize === "xs" ? "p-2" : "p-3"} bg-gray-50 min-h-fit`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4 }}>
+            <AnimatePresence mode="popLayout">
+               {currentRows.map((row, idx) => {
+                  const isBeingSwiped = swipeData.index === idx;
+                  return (
+                     <motion.div
+                        key={idx}
+                        className="relative"
+                        layout
+                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95, x: -100 }}
+                        transition={{
+                           type: "spring",
+                           damping: 25,
+                           stiffness: 300,
+                           delay: idx * 0.05,
+                        }}>
+                        <motion.div
+                           className="relative overflow-hidden bg-white border border-gray-200 rounded-xl"
+                           drag="x"
+                           dragConstraints={{ left: 0, right: 0 }}
+                           dragElastic={0.15}
+                           onDragStart={() => handleSwipeStart(idx)}
+                           onDrag={(_, info) => handleSwipeMove(info.offset.x)}
+                           onDragEnd={() =>
+                              handleSwipeEnd(row, idx, (p) => true)
+                           }
+                           style={{
+                              x: isBeingSwiped ? swipeData.offset : 0,
+                              boxShadow: isBeingSwiped
+                                 ? "0 10px 15px -3px rgba(0,0,0,0.1)"
+                                 : "0 1px 3px 0 rgba(0,0,0,0.1)",
+                           }}
+                           whileHover={{ y: -2 }}
+                           whileTap={{ scale: 0.98 }}>
+                           <div className="h-0.5 bg-[#9B2242]" />
+                           <div
+                              className={`${padding} active:bg-gray-50`}
+                              onClick={() => {
+                                 if (mobileConfig?.onTileTap)
+                                    mobileConfig.onTileTap(row);
+                                 else if (mobileConfig?.bottomSheet) {
+                                    setSelectedRowForSheet(row);
+                                    setShowBottomSheet(true);
+                                 }
+                              }}>
+                              <div className="flex items-center space-x-4">
+                                 {mobileConfig?.listTile?.leading && (
+                                    <div className="flex-shrink-0">
+                                       {mobileConfig.listTile.leading(row)}
+                                    </div>
+                                 )}
+                                 <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between mb-1">
+                                       <div
+                                          className={`${textSize.title} font-semibold text-gray-900 truncate`}>
+                                          {mobileConfig?.listTile?.title
+                                             ? mobileConfig.listTile.title(row)
+                                             : getCardTitle(row)}
+                                       </div>
+                                       {mobileConfig?.listTile?.trailing && (
+                                          <div className="flex-shrink-0 ml-3">
+                                             {mobileConfig.listTile.trailing(
+                                                row,
+                                             )}
+                                          </div>
+                                       )}
+                                    </div>
+                                    {mobileConfig?.listTile?.subtitle && (
+                                       <div
+                                          className={`${textSize.subtitle} text-gray-600 truncate`}>
+                                          {mobileConfig.listTile.subtitle(row)}
+                                       </div>
+                                    )}
+                                 </div>
+                              </div>
+                           </div>
+                           {/* Swipe hint indicators */}
+                           {mobileConfig?.swipeActions && (
+                              <>
+                                 {mobileConfig.swipeActions.left?.[0] && (
+                                    <motion.div
+                                       className="absolute top-0 bottom-0 left-0 flex items-center justify-center px-4 rounded-l-xl"
+                                       style={{
+                                          background:
+                                             mobileConfig.swipeActions.left[0]
+                                                .color || "bg-orange-500",
+                                          opacity:
+                                             isBeingSwiped &&
+                                             swipeData.offset > 20
+                                                ? Math.min(
+                                                     swipeData.offset / 60,
+                                                     1,
+                                                  )
+                                                : 0,
+                                          width: 64,
+                                          zIndex: -1,
+                                       }}>
+                                       {mobileConfig.swipeActions.left[0].icon}
+                                    </motion.div>
+                                 )}
+                                 {mobileConfig.swipeActions.right?.[0] && (
+                                    <motion.div
+                                       className="absolute top-0 bottom-0 right-0 flex items-center justify-center px-4 rounded-r-xl"
+                                       style={{
+                                          background:
+                                             mobileConfig.swipeActions.right[0]
+                                                .color || "bg-red-500",
+                                          opacity:
+                                             isBeingSwiped &&
+                                             swipeData.offset < -20
+                                                ? Math.min(
+                                                     -swipeData.offset / 60,
+                                                     1,
+                                                  )
+                                                : 0,
+                                          width: 64,
+                                          zIndex: -1,
+                                       }}>
+                                       {mobileConfig.swipeActions.right[0].icon}
+                                    </motion.div>
+                                 )}
+                              </>
+                           )}
+                        </motion.div>
+                     </motion.div>
+                  );
+               })}
+            </AnimatePresence>
          </motion.div>
-         <h3 style={{ color: C.text1, marginTop: 20, marginBottom: 8 }}>
-            No se encontraron resultados
-         </h3>
-         <p
-            style={{
-               color: C.text2,
-               textAlign: "center",
-               maxWidth: 300,
-               margin: "0 0 20px",
-            }}>
-            {globalFilter || Object.values(columnFilters).some(Boolean)
-               ? "Los filtros aplicados no coinciden con ningún registro."
-               : "No hay datos disponibles para mostrar."}
-         </p>
-         {(globalFilter || Object.values(columnFilters).some(Boolean)) && (
-            <motion.button
-               whileHover={{ scale: 1.05 }}
-               whileTap={{ scale: 0.95 }}
-               onClick={clearAll}
-               style={{
-                  padding: "8px 20px",
-                  background: C.ruby,
-                  color: "white",
-                  border: "none",
-                  borderRadius: C.r6,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-               }}>
-               <FiRefreshCw size={14} />
-               Limpiar todos los filtros
-            </motion.button>
-         )}
+      );
+   };
+
+   const renderMobileCompactListView = () => (
+      <motion.div
+         className={`${screenSize === "xs" ? "p-2" : "p-3"} bg-gray-50`}
+         initial={{ opacity: 0 }}
+         animate={{ opacity: 1 }}>
+         <div className="space-y-0.5 bg-white rounded-xl overflow-hidden border border-gray-200 shadow-sm">
+            <AnimatePresence>
+               {currentRows.map((row, idx) => (
+                  <motion.div
+                     key={idx}
+                     className="border-b border-gray-100 last:border-b-0"
+                     initial={{ opacity: 0, x: -30 }}
+                     animate={{ opacity: 1, x: 0 }}
+                     transition={{
+                        delay: idx * 0.03,
+                        type: "spring",
+                        stiffness: 400,
+                     }}
+                     whileTap={{ backgroundColor: "#f3f4f6", scale: 0.99 }}>
+                     <div
+                        className="px-4 py-2.5 hover:bg-gray-50"
+                        onClick={() => {
+                           if (mobileConfig?.onTileTap)
+                              mobileConfig.onTileTap(row);
+                           else if (mobileConfig?.bottomSheet) {
+                              setSelectedRowForSheet(row);
+                              setShowBottomSheet(true);
+                           }
+                        }}>
+                        <div className="flex items-center justify-between gap-3">
+                           <div className="flex items-center flex-1 min-w-0 gap-3">
+                              {mobileConfig?.listTile?.leading && (
+                                 <div className="flex-shrink-0 opacity-80">
+                                    {mobileConfig.listTile.leading(row)}
+                                 </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                 <div className="text-sm font-semibold text-gray-900 truncate">
+                                    {mobileConfig?.listTile?.title
+                                       ? mobileConfig.listTile.title(row)
+                                       : getCardTitle(row)}
+                                 </div>
+                              </div>
+                           </div>
+                           {mobileConfig?.listTile?.trailing && (
+                              <div className="flex-shrink-0 opacity-80">
+                                 {mobileConfig.listTile.trailing(row)}
+                              </div>
+                           )}
+                        </div>
+                     </div>
+                  </motion.div>
+               ))}
+            </AnimatePresence>
+         </div>
       </motion.div>
    );
 
-   // ==================== DROPDOWNS ====================
+   const renderMobileCardsView = () => (
+      <motion.div
+         className={`grid ${screenSize === "xs" ? "grid-cols-1" : "grid-cols-2"} gap-4 ${screenSize === "xs" ? "p-2" : "p-4"} bg-gray-50`}
+         initial={{ opacity: 0 }}
+         animate={{ opacity: 1 }}>
+         {currentRows.map((row, idx) => (
+            <motion.div
+               key={idx}
+               className="overflow-hidden bg-white border border-gray-200 shadow-md rounded-2xl"
+               initial={{ opacity: 0, scale: 0.9, y: 30 }}
+               animate={{ opacity: 1, scale: 1, y: 0 }}
+               transition={{
+                  delay: idx * 0.06,
+                  type: "spring",
+                  damping: 25,
+                  stiffness: 300,
+               }}
+               whileHover={{
+                  y: -6,
+                  scale: 1.02,
+                  boxShadow: "0 20px 25px -5px rgba(0,0,0,0.15)",
+               }}
+               whileTap={{ scale: 0.98 }}
+               onClick={() => {
+                  if (mobileConfig?.onTileTap) mobileConfig.onTileTap(row);
+                  else if (mobileConfig?.bottomSheet) {
+                     setSelectedRowForSheet(row);
+                     setShowBottomSheet(true);
+                  }
+               }}>
+               <div className="h-1 bg-[#9B2242]" />
+               <div className={getDensityPadding()}>
+                  {mobileConfig?.listTile?.leading && (
+                     <div className="flex justify-center pt-2 mb-4">
+                        <div className="p-3 bg-gray-100 rounded-xl">
+                           {mobileConfig.listTile.leading(row)}
+                        </div>
+                     </div>
+                  )}
+                  <div
+                     className={`${getDensityTextSize().title} font-semibold text-gray-900 text-center mb-2 line-clamp-2`}>
+                     {mobileConfig?.listTile?.title
+                        ? mobileConfig.listTile.title(row)
+                        : getCardTitle(row)}
+                  </div>
+                  {mobileConfig?.listTile?.subtitle && (
+                     <div
+                        className={`${getDensityTextSize().subtitle} text-gray-600 text-center line-clamp-2 mb-3`}>
+                        {mobileConfig.listTile.subtitle(row)}
+                     </div>
+                  )}
+                  {mobileConfig?.listTile?.trailing && (
+                     <div className="flex justify-center pt-3 border-t border-gray-100">
+                        {mobileConfig.listTile.trailing(row)}
+                     </div>
+                  )}
+               </div>
+            </motion.div>
+         ))}
+      </motion.div>
+   );
+
+   const renderMobileMiniCardsView = () => (
+      <motion.div
+         className={`grid ${screenSize === "xs" ? "grid-cols-2" : "grid-cols-3"} gap-3 ${screenSize === "xs" ? "p-2" : "p-3"} bg-gray-50`}
+         initial={{ opacity: 0 }}
+         animate={{ opacity: 1 }}>
+         {currentRows.map((row, idx) => (
+            <motion.div
+               key={idx}
+               className="overflow-hidden bg-white border border-gray-200 shadow-sm rounded-xl"
+               initial={{ opacity: 0, scale: 0.8 }}
+               animate={{ opacity: 1, scale: 1 }}
+               transition={{
+                  delay: idx * 0.04,
+                  type: "spring",
+                  damping: 20,
+                  stiffness: 400,
+               }}
+               whileHover={{
+                  scale: 1.05,
+                  boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)",
+               }}
+               whileTap={{ scale: 0.95 }}
+               onClick={() => {
+                  if (mobileConfig?.onTileTap) mobileConfig.onTileTap(row);
+                  else if (mobileConfig?.bottomSheet) {
+                     setSelectedRowForSheet(row);
+                     setShowBottomSheet(true);
+                  }
+               }}>
+               <div className="h-0.5 bg-[#9B2242]" />
+               <div className="p-3">
+                  {mobileConfig?.listTile?.leading && (
+                     <div className="flex justify-center p-2 mb-2 rounded-lg bg-gray-50">
+                        {mobileConfig.listTile.leading(row)}
+                     </div>
+                  )}
+                  <div className="text-xs font-semibold text-gray-900 text-center line-clamp-2 min-h-[2rem]">
+                     {mobileConfig?.listTile?.title
+                        ? mobileConfig.listTile.title(row)
+                        : getCardTitle(row)}
+                  </div>
+                  {mobileConfig?.listTile?.trailing && (
+                     <div className="flex justify-center pt-2 mt-2 border-t border-gray-100">
+                        {mobileConfig.listTile.trailing(row)}
+                     </div>
+                  )}
+               </div>
+            </motion.div>
+         ))}
+      </motion.div>
+   );
+
+   const renderMobileTimelineView = () => (
+      <motion.div
+         className={`${screenSize === "xs" ? "p-3" : "p-4"} bg-gray-50 min-h-screen`}
+         initial={{ opacity: 0 }}
+         animate={{ opacity: 1 }}>
+         <div className="relative">
+            <div
+               className="absolute top-0 bottom-0 w-0.5 left-[28px]"
+               style={{ backgroundColor: "#B8B6AF" }}
+            />
+            <div className="space-y-4">
+               {currentRows.map((row, idx) => (
+                  <motion.div
+                     key={idx}
+                     className="flex gap-4"
+                     initial={{ opacity: 0, x: -20 }}
+                     animate={{ opacity: 1, x: 0 }}
+                     transition={{
+                        delay: idx * 0.06,
+                        type: "spring",
+                        stiffness: 300,
+                     }}
+                     onClick={() => {
+                        if (mobileConfig?.onTileTap)
+                           mobileConfig.onTileTap(row);
+                        else if (mobileConfig?.bottomSheet) {
+                           setSelectedRowForSheet(row);
+                           setShowBottomSheet(true);
+                        }
+                     }}>
+                     <div className="flex justify-center flex-shrink-0 pt-2 w-7">
+                        <div
+                           className="w-3 h-3 border-2 border-white rounded-full shadow-md"
+                           style={{
+                              backgroundColor: "#9B2242",
+                              borderColor: "#B8B6AF",
+                           }}
+                        />
+                     </div>
+                     <motion.div
+                        className="flex-1 p-4 bg-white border border-gray-200 shadow-sm rounded-xl"
+                        whileHover={{
+                           x: 4,
+                           boxShadow: "0 8px 16px -4px rgba(0,0,0,0.12)",
+                        }}
+                        whileTap={{ scale: 0.98 }}>
+                        <div className="flex flex-wrap items-start gap-3">
+                           {mobileConfig?.listTile?.leading && (
+                              <div className="flex-shrink-0 mt-0.5">
+                                 {mobileConfig.listTile.leading(row)}
+                              </div>
+                           )}
+                           <div className="flex-1 min-w-0">
+                              <div
+                                 className={`${getDensityTextSize().title} font-semibold break-words mb-1`}
+                                 style={{ color: "#130D0E" }}>
+                                 {mobileConfig?.listTile?.title
+                                    ? mobileConfig.listTile.title(row)
+                                    : getCardTitle(row)}
+                              </div>
+                              {mobileConfig?.listTile?.subtitle && (
+                                 <div
+                                    className={`${getDensityTextSize().subtitle} text-gray-600 line-clamp-2 break-words`}
+                                    style={{ color: "#727372" }}>
+                                    {mobileConfig.listTile.subtitle(row)}
+                                 </div>
+                              )}
+                              {mobileConfig?.listTile?.trailing && (
+                                 <div
+                                    className="pt-2 mt-3 border-t"
+                                    style={{ borderColor: "#B8B6AF40" }}>
+                                    {mobileConfig.listTile.trailing(row)}
+                                 </div>
+                              )}
+                           </div>
+                        </div>
+                     </motion.div>
+                  </motion.div>
+               ))}
+            </div>
+         </div>
+      </motion.div>
+   );
+
+   const renderMobileDetailedListView = () => (
+      <motion.div
+         className={`space-y-4 ${screenSize === "xs" ? "p-3" : "p-4"} bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen`}
+         initial={{ opacity: 0 }}
+         animate={{ opacity: 1 }}>
+         <AnimatePresence mode="wait">
+            {currentRows.map((row, idx) => {
+               const isExpanded = activeDetails === idx;
+               return (
+                  <motion.div
+                     key={idx}
+                     className="relative"
+                     layout
+                     initial={{ opacity: 0, y: 15 }}
+                     animate={{ opacity: 1, y: 0 }}
+                     exit={{ opacity: 0, y: -15 }}
+                     transition={{
+                        delay: idx * 0.05,
+                        type: "spring",
+                        stiffness: 300,
+                        damping: 25,
+                     }}>
+                     <motion.div
+                        className="overflow-hidden bg-white border border-gray-200 shadow-lg rounded-2xl"
+                        layout
+                        whileHover={{
+                           scale: 1.02,
+                           boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
+                        }}
+                        whileTap={{ scale: 0.98 }}>
+                        <div
+                           className="px-4 py-3 bg-[#9B2242] text-white"
+                           onClick={() =>
+                              setActiveDetails(isExpanded ? null : idx)
+                           }>
+                           <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                 <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white/20">
+                                    {mobileConfig?.listTile?.leading ? (
+                                       <div className="text-white">
+                                          {mobileConfig.listTile.leading(row)}
+                                       </div>
+                                    ) : (
+                                       <span className="text-lg font-bold text-white">
+                                          {String(
+                                             mobileConfig?.listTile?.title
+                                                ? mobileConfig.listTile.title(
+                                                     row,
+                                                  )
+                                                : getCardTitle(row),
+                                          ).charAt(0)}
+                                       </span>
+                                    )}
+                                 </div>
+                                 <div className="flex-1 min-w-0">
+                                    <h3 className="text-lg font-bold text-white truncate">
+                                       {mobileConfig?.listTile?.title
+                                          ? mobileConfig.listTile.title(row)
+                                          : getCardTitle(row)}
+                                    </h3>
+                                    {mobileConfig?.listTile?.subtitle && (
+                                       <p className="text-sm text-blue-100 truncate">
+                                          {mobileConfig.listTile.subtitle(row)}
+                                       </p>
+                                    )}
+                                 </div>
+                              </div>
+                              <motion.div
+                                 animate={{ rotate: isExpanded ? 180 : 0 }}
+                                 className="text-white">
+                                 <FiChevronDown size={24} />
+                              </motion.div>
+                           </div>
+                        </div>
+                        <AnimatePresence>
+                           {isExpanded && (
+                              <motion.div
+                                 initial={{ opacity: 0, height: 0 }}
+                                 animate={{ opacity: 1, height: "auto" }}
+                                 exit={{ opacity: 0, height: 0 }}
+                                 transition={{ duration: 0.3 }}
+                                 className="overflow-hidden">
+                                 <div className="px-4 py-6 border-b border-gray-100">
+                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                       {columns.slice(0, 2).map((col) => (
+                                          <div
+                                             key={String(col.field)}
+                                             className="p-3 bg-gray-50 rounded-xl">
+                                             <div className="mb-1 text-xs font-semibold text-gray-500 uppercase">
+                                                {col.headerName}
+                                             </div>
+                                             <div className="text-sm font-medium text-gray-900 line-clamp-2">
+                                                {col.renderField
+                                                   ? col.renderField(
+                                                        getNestedValue(
+                                                           row,
+                                                           col.field,
+                                                        ),
+                                                        row,
+                                                     )
+                                                   : String(
+                                                        getNestedValue(
+                                                           row,
+                                                           col.field,
+                                                        ) ?? "-",
+                                                     )}
+                                             </div>
+                                          </div>
+                                       ))}
+                                    </div>
+                                 </div>
+                                 <div className="px-4 py-6">
+                                    <div className="grid grid-cols-1 gap-3">
+                                       {columns.slice(2, 6).map((col) => (
+                                          <div
+                                             key={String(col.field)}
+                                             className="flex items-start justify-between py-2 border-b border-gray-100 last:border-b-0">
+                                             <span className="flex-1 text-sm font-medium text-gray-600">
+                                                {col.headerName}
+                                             </span>
+                                             <span className="flex-1 text-sm font-medium text-right text-gray-900">
+                                                {col.renderField
+                                                   ? col.renderField(
+                                                        getNestedValue(
+                                                           row,
+                                                           col.field,
+                                                        ),
+                                                        row,
+                                                     )
+                                                   : String(
+                                                        getNestedValue(
+                                                           row,
+                                                           col.field,
+                                                        ) ?? "-",
+                                                     )}
+                                             </span>
+                                          </div>
+                                       ))}
+                                    </div>
+                                 </div>
+                                 <div className="px-4 pb-6">
+                                    <button
+                                       onClick={() => {
+                                          if (mobileConfig?.onTileTap)
+                                             mobileConfig.onTileTap(row);
+                                          else if (mobileConfig?.bottomSheet) {
+                                             setSelectedRowForSheet(row);
+                                             setShowBottomSheet(true);
+                                          }
+                                       }}
+                                       className="w-full bg-[#9B2242] text-white font-medium py-3 rounded-xl hover:opacity-90 transition flex items-center justify-center gap-2">
+                                       <FiEye size={18} /> Ver completo
+                                    </button>
+                                 </div>
+                              </motion.div>
+                           )}
+                        </AnimatePresence>
+                        <AnimatePresence>
+                           {!isExpanded && (
+                              <motion.div
+                                 initial={{ opacity: 0 }}
+                                 animate={{ opacity: 1 }}
+                                 className="px-4 py-3 border-t border-gray-100">
+                                 <div className="flex items-center justify-between text-sm">
+                                    <div className="flex items-center gap-4">
+                                       {columns
+                                          .slice(0, 2)
+                                          .filter(
+                                             (col) =>
+                                                col.field &&
+                                                col.headerName &&
+                                                getNestedValue(
+                                                   row,
+                                                   col.field,
+                                                ) != null,
+                                          )
+                                          .map((col, i) => (
+                                             <div
+                                                key={i}
+                                                className="flex items-center gap-1">
+                                                <span className="text-gray-500">
+                                                   {col.headerName}:
+                                                </span>
+                                                <span className="text-gray-900 font-medium truncate max-w-[80px]">
+                                                   {col.renderField
+                                                      ? col.renderField(
+                                                           getNestedValue(
+                                                              row,
+                                                              col.field,
+                                                           ),
+                                                           row,
+                                                        )
+                                                      : String(
+                                                           getNestedValue(
+                                                              row,
+                                                              col.field,
+                                                           ),
+                                                        ).substring(0, 15)}
+                                                </span>
+                                             </div>
+                                          ))}
+                                    </div>
+                                    <button
+                                       onClick={() => {
+                                          if (mobileConfig?.onTileTap)
+                                             mobileConfig.onTileTap(row);
+                                          else if (mobileConfig?.bottomSheet) {
+                                             setSelectedRowForSheet(row);
+                                             setShowBottomSheet(true);
+                                          }
+                                       }}
+                                       className="font-bold">
+                                       Ver →
+                                    </button>
+                                 </div>
+                              </motion.div>
+                           )}
+                        </AnimatePresence>
+                     </motion.div>
+                  </motion.div>
+               );
+            })}
+         </AnimatePresence>
+      </motion.div>
+   );
+
+   // ---------- Dropdowns (desktop) ----------
    const renderColumnManager = () => (
       <AnimatePresence>
          {showColumnManager && (
@@ -2734,17 +3436,6 @@ const CustomTableInner = <T extends object>(
                         }}>
                         {col.headerName}
                      </span>
-                     {col.field.includes(".") && (
-                        <span
-                           style={{
-                              fontSize: 9,
-                              color: C.text3,
-                              fontFamily: "monospace",
-                              marginLeft: "auto",
-                           }}>
-                           {col.field}
-                        </span>
-                     )}
                   </label>
                ))}
             </motion.div>
@@ -2812,54 +3503,6 @@ const CustomTableInner = <T extends object>(
                ].map((opt) => (
                   <ExportBtn key={opt.label} {...opt} C={C} />
                ))}
-
-               {enableRowSelection && selectedData.length > 0 && (
-                  <>
-                     <div
-                        style={{
-                           height: 1,
-                           background: C.border,
-                           margin: "6px 0",
-                        }}
-                     />
-                     <div
-                        style={{
-                           fontSize: 10,
-                           fontWeight: 700,
-                           color: C.text3,
-                           textTransform: "uppercase",
-                           letterSpacing: "0.07em",
-                           padding: "4px 12px",
-                        }}>
-                        Solo seleccionados ({selectedData.length})
-                     </div>
-                     {[
-                        {
-                           icon: <RiFileExcelFill size={14} />,
-                           label: "Excel (sel.)",
-                           action: () =>
-                              exportExcel(getExportData(true, sortedData)),
-                           color: C.green,
-                        },
-                        {
-                           icon: <RiFileExcelFill size={14} />,
-                           label: "CSV (sel.)",
-                           action: () =>
-                              exportCSV(getExportData(true, sortedData)),
-                           color: C.blue,
-                        },
-                        {
-                           icon: <RiFileTextLine size={14} />,
-                           label: "JSON (sel.)",
-                           action: () =>
-                              exportJSON(getExportData(true, sortedData)),
-                           color: C.gold,
-                        },
-                     ].map((opt) => (
-                        <ExportBtn key={opt.label} {...opt} C={C} />
-                     ))}
-                  </>
-               )}
             </motion.div>
          )}
       </AnimatePresence>
@@ -3105,14 +3748,12 @@ const CustomTableInner = <T extends object>(
                                     gridTemplateColumns: "1fr 1fr",
                                     gap: 4,
                                  }}>
-                                 {(
-                                    [
-                                       ["Suma", stats.sum.toLocaleString()],
-                                       ["Promedio", stats.avg.toFixed(1)],
-                                       ["Min", stats.min.toLocaleString()],
-                                       ["Max", stats.max.toLocaleString()],
-                                    ] as [string, string][]
-                                 ).map(([label, value]) => (
+                                 {[
+                                    ["Suma", stats.sum.toLocaleString()],
+                                    ["Promedio", stats.avg.toFixed(1)],
+                                    ["Min", stats.min.toLocaleString()],
+                                    ["Max", stats.max.toLocaleString()],
+                                 ].map(([label, value]) => (
                                     <div key={label}>
                                        <div
                                           style={{
@@ -3136,29 +3777,678 @@ const CustomTableInner = <T extends object>(
                            </div>
                         );
                      })}
-                  {normalColumns.filter((col) => getColumnStats(col) !== null)
-                     .length === 0 && (
-                     <span
-                        style={{
-                           fontSize: 12,
-                           color: C.text3,
-                           padding: "8px 0",
-                        }}>
-                        No hay columnas numéricas para estadísticas
-                     </span>
-                  )}
                </div>
             </motion.div>
          )}
       </AnimatePresence>
    );
 
-   // ==================== MAIN RENDER ====================
+   // ---------- Mobile overlays ----------
+   const renderFilterModalMobile = () => {
+      if (!showFilterModal || !mobileConfig?.quickFilters?.filters) return null;
+      return (
+         <AnimatePresence>
+            <motion.div
+               className="fixed inset-0 z-50 flex items-end justify-center"
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               exit={{ opacity: 0 }}>
+               <motion.div
+                  className="absolute inset-0 bg-black bg-opacity-50"
+                  onClick={() => setShowFilterModal(false)}
+               />
+               <motion.div
+                  className="relative bg-white rounded-t-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden"
+                  initial={{ y: "100%" }}
+                  animate={{ y: 0 }}
+                  exit={{ y: "100%" }}
+                  transition={{ type: "spring", damping: 30, stiffness: 300 }}>
+                  {/* Handle */}
+                  <div className="flex justify-center pt-3 pb-1">
+                     <div className="w-12 h-1 bg-gray-300 rounded-full" />
+                  </div>
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+                     <div>
+                        <h3 className="text-base font-bold text-gray-900">
+                           Filtros
+                        </h3>
+                        {mobileActiveFilterCount > 0 && (
+                           <p className="text-xs text-[#9B2242] font-medium">
+                              {mobileActiveFilterCount} activo
+                              {mobileActiveFilterCount !== 1 ? "s" : ""}
+                           </p>
+                        )}
+                     </div>
+                     <button
+                        onClick={() => setShowFilterModal(false)}
+                        className="flex items-center justify-center w-8 h-8 text-gray-500 bg-gray-100 rounded-full">
+                        <FiX size={16} />
+                     </button>
+                  </div>
+                  <div
+                     className="px-5 py-4 overflow-y-auto"
+                     style={{ maxHeight: "calc(85vh - 160px)" }}>
+                     <div className="space-y-5">
+                        {mobileConfig.quickFilters.filters.map((filter) => {
+                           const field = String(filter.field);
+                           const col = columns.find((c) => c.field === field);
+                           let defaultValue = filter.defaultValue;
+                           if (
+                              filter.type === "date" &&
+                              filter.defaultValue === "today"
+                           )
+                              defaultValue = new Date()
+                                 .toISOString()
+                                 .split("T")[0];
+                           const currentValue =
+                              tempFilters[field] !== undefined
+                                 ? tempFilters[field]
+                                 : defaultValue;
+                           return (
+                              <div key={field} className="space-y-2">
+                                 <div className="flex items-center justify-between">
+                                    <label className="block text-sm font-semibold text-gray-800">
+                                       {filter.label ||
+                                          col?.headerName ||
+                                          field}
+                                    </label>
+                                    <div className="flex gap-1">
+                                       {filter.showTodayButton &&
+                                          filter.type === "date" && (
+                                             <button
+                                                type="button"
+                                                onClick={() =>
+                                                   setTempFilters((prev) => ({
+                                                      ...prev,
+                                                      [field]: new Date()
+                                                         .toISOString()
+                                                         .split("T")[0],
+                                                   }))
+                                                }
+                                                className="px-2 py-1 text-xs font-medium text-blue-600 rounded-lg bg-blue-50">
+                                                Hoy
+                                             </button>
+                                          )}
+                                       {currentValue && (
+                                          <button
+                                             type="button"
+                                             onClick={() =>
+                                                setTempFilters((prev) => ({
+                                                   ...prev,
+                                                   [field]: "",
+                                                }))
+                                             }
+                                             className="px-2 py-1 text-xs text-gray-500 bg-gray-100 rounded-lg">
+                                             <FiX size={11} />
+                                          </button>
+                                       )}
+                                    </div>
+                                 </div>
+                                 {renderFilterInputMobile(
+                                    filter,
+                                    field,
+                                    currentValue,
+                                 )}
+                              </div>
+                           );
+                        })}
+                     </div>
+                  </div>
+                  <div className="flex gap-3 px-5 py-4 bg-white border-t border-gray-100">
+                     <button
+                        onClick={handleClearFilters}
+                        className="flex-1 py-3 text-sm font-semibold text-gray-700 bg-gray-100 rounded-xl">
+                        Limpiar
+                     </button>
+                     <button
+                        onClick={handleApplyFilters}
+                        className="flex-2 px-6 py-3 bg-[#9B2242] text-white font-semibold rounded-xl text-sm"
+                        style={{ flex: 2 }}>
+                        Aplicar filtros
+                     </button>
+                  </div>
+               </motion.div>
+            </motion.div>
+         </AnimatePresence>
+      );
+   };
+
+   const renderFilterInputMobile = (
+      filterConfig: any,
+      field: string,
+      currentValue: any,
+   ) => {
+      switch (filterConfig.type) {
+         case "date":
+            return (
+               <input
+                  type="date"
+                  value={currentValue || ""}
+                  onChange={(e) =>
+                     setTempFilters((prev) => ({
+                        ...prev,
+                        [field]: e.target.value,
+                     }))
+                  }
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#9B2242] bg-gray-50"
+               />
+            );
+         case "time":
+            return (
+               <input
+                  type="time"
+                  value={currentValue || ""}
+                  onChange={(e) =>
+                     setTempFilters((prev) => ({
+                        ...prev,
+                        [field]: e.target.value,
+                     }))
+                  }
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#9B2242] bg-gray-50"
+               />
+            );
+         case "datetime":
+            return (
+               <input
+                  type="datetime-local"
+                  value={currentValue || ""}
+                  onChange={(e) =>
+                     setTempFilters((prev) => ({
+                        ...prev,
+                        [field]: e.target.value,
+                     }))
+                  }
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#9B2242] bg-gray-50"
+               />
+            );
+         case "date-range": {
+            const range = currentValue || { start: "", end: "" };
+            const presets = filterConfig.presets || [];
+            return (
+               <div className="space-y-3">
+                  {presets.length > 0 && (
+                     <div className="flex flex-wrap gap-2">
+                        {presets.map((preset: any, i: number) => (
+                           <button
+                              key={i}
+                              type="button"
+                              onClick={() =>
+                                 setTempFilters((prev) => ({
+                                    ...prev,
+                                    [field]: {
+                                       start: formatDateForInput(preset.start),
+                                       end: formatDateForInput(preset.end),
+                                    },
+                                 }))
+                              }
+                              className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg font-medium">
+                              {preset.label}
+                           </button>
+                        ))}
+                     </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-3">
+                     <div className="space-y-1">
+                        <label className="text-xs font-medium text-gray-500">
+                           Desde
+                        </label>
+                        <input
+                           type="date"
+                           value={range.start || ""}
+                           onChange={(e) =>
+                              setTempFilters((prev) => ({
+                                 ...prev,
+                                 [field]: { ...range, start: e.target.value },
+                              }))
+                           }
+                           className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50"
+                        />
+                     </div>
+                     <div className="space-y-1">
+                        <label className="text-xs font-medium text-gray-500">
+                           Hasta
+                        </label>
+                        <input
+                           type="date"
+                           value={range.end || ""}
+                           onChange={(e) =>
+                              setTempFilters((prev) => ({
+                                 ...prev,
+                                 [field]: { ...range, end: e.target.value },
+                              }))
+                           }
+                           className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50"
+                        />
+                     </div>
+                  </div>
+               </div>
+            );
+         }
+         case "select":
+            return (
+               <select
+                  value={currentValue || ""}
+                  onChange={(e) =>
+                     setTempFilters((prev) => ({
+                        ...prev,
+                        [field]: e.target.value,
+                     }))
+                  }
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#9B2242] bg-gray-50">
+                  <option value="">Todos</option>
+                  {filterConfig.options?.map((opt: any, i: number) => (
+                     <option key={i} value={opt.value}>
+                        {opt.label}
+                     </option>
+                  ))}
+               </select>
+            );
+         case "checkbox":
+            return (
+               <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                     type="checkbox"
+                     checked={!!currentValue}
+                     onChange={(e) =>
+                        setTempFilters((prev) => ({
+                           ...prev,
+                           [field]: e.target.checked,
+                        }))
+                     }
+                     className="h-5 w-5 text-[#9B2242] focus:ring-[#9B2242] border-gray-300 rounded"
+                  />
+                  <span className="text-sm text-gray-700">
+                     {filterConfig.placeholder || "Activar filtro"}
+                  </span>
+               </label>
+            );
+         case "number":
+            return (
+               <input
+                  type="number"
+                  value={currentValue || ""}
+                  onChange={(e) =>
+                     setTempFilters((prev) => ({
+                        ...prev,
+                        [field]: e.target.value,
+                     }))
+                  }
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#9B2242] bg-gray-50"
+                  placeholder={filterConfig.placeholder}
+               />
+            );
+         default:
+            return (
+               <input
+                  type="text"
+                  value={currentValue || ""}
+                  onChange={(e) =>
+                     setTempFilters((prev) => ({
+                        ...prev,
+                        [field]: e.target.value,
+                     }))
+                  }
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#9B2242] bg-gray-50"
+                  placeholder={
+                     filterConfig.placeholder ||
+                     `Buscar por ${filterConfig.label || field}...`
+                  }
+               />
+            );
+      }
+   };
+
+   const renderActiveFiltersChips = () => {
+      if (
+         !mobileConfig?.quickFilters?.filters ||
+         Object.keys(activeFilters).length === 0
+      )
+         return null;
+      const chips = mobileConfig.quickFilters.filters
+         .map((filter) => {
+            const field = String(filter.field);
+            const value = activeFilters[field];
+            if (
+               !value ||
+               (typeof value === "object" && Object.keys(value).length === 0)
+            )
+               return null;
+            const col = columns.find((c) => c.field === field);
+            let displayValue = value;
+            if (filter.type === "date-range") {
+               if (!value?.start || !value?.end) return null;
+               const startDate = new Date(value.start);
+               const endDate = new Date(value.end);
+               if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()))
+                  return null;
+               displayValue = `${startDate.toLocaleDateString("es-ES", { month: "short", day: "numeric" })} - ${endDate.toLocaleDateString("es-ES", { month: "short", day: "numeric" })}`;
+            } else if (filter.type === "date") {
+               const date = new Date(value);
+               if (!isNaN(date.getTime()))
+                  displayValue = date.toLocaleDateString("es-ES", {
+                     month: "short",
+                     day: "numeric",
+                     year: "2-digit",
+                  });
+            } else if (filter.type === "select") {
+               const opt = filter.options?.find(
+                  (o) => String(o.value) === String(value),
+               );
+               if (opt) displayValue = opt.label;
+            }
+            const chipLabel = filter.label || col?.headerName || field;
+            return (
+               <div
+                  key={field}
+                  className="flex items-center gap-1.5 bg-[#9B2242] text-white px-2.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap">
+                  <span className="opacity-80">{chipLabel}:</span>
+                  <span className="max-w-[80px] truncate">
+                     {String(displayValue)}
+                  </span>
+                  <button
+                     onClick={() => {
+                        const newTemp = { ...tempFilters, [field]: "" };
+                        setTempFilters(newTemp);
+                        const newActive = { ...activeFilters };
+                        delete newActive[field];
+                        setActiveFilters(newActive);
+                        mobileConfig?.quickFilters?.onApply?.(newActive);
+                     }}
+                     className="ml-0.5 flex-shrink-0 opacity-80 hover:opacity-100">
+                     <FiX size={11} />
+                  </button>
+               </div>
+            );
+         })
+         .filter(Boolean);
+
+      if (chips.length === 0) return null;
+      return (
+         <div
+            className="flex gap-2 pb-1 mt-2 overflow-x-auto"
+            style={{ scrollbarWidth: "none" }}>
+            {chips}
+            {chips.length > 1 && (
+               <button
+                  onClick={handleClearFilters}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium border border-gray-300 text-gray-600 whitespace-nowrap flex-shrink-0">
+                  <FiX size={10} /> Limpiar
+               </button>
+            )}
+         </div>
+      );
+   };
+
+   const renderBottomSheet = () => {
+      if (
+         !showBottomSheet ||
+         !selectedRowForSheet ||
+         !mobileConfig?.bottomSheet
+      )
+         return null;
+      return (
+         <AnimatePresence>
+            <motion.div
+               className="fixed inset-0 z-50"
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               exit={{ opacity: 0 }}>
+               <motion.div
+                  className="absolute inset-0 bg-black bg-opacity-40"
+                  onClick={closeBottomSheet}
+               />
+               <motion.div
+                  className="absolute bottom-0 left-0 right-0 overflow-hidden bg-white shadow-2xl rounded-t-3xl"
+                  initial={{ y: "100%" }}
+                  animate={{ y: 0 }}
+                  exit={{ y: "100%" }}
+                  transition={{
+                     type: "spring",
+                     damping: 30,
+                     stiffness: 300,
+                     mass: 0.8,
+                  }}
+                  style={{
+                     maxHeight: mobileConfig.bottomSheet.height || "80vh",
+                  }}>
+                  <div className="flex justify-center pt-3 pb-2">
+                     <div className="w-16 h-1.5 bg-gray-300 rounded-full"></div>
+                  </div>
+                  {(mobileConfig.bottomSheet.showCloseButton ?? true) && (
+                     <button
+                        onClick={closeBottomSheet}
+                        className="absolute p-2 bg-gray-100 rounded-full top-2 right-3 hover:bg-gray-200">
+                        <FiX size={20} />
+                     </button>
+                  )}
+                  <div className="px-4 pb-6">
+                     {mobileConfig.bottomSheet.builder(
+                        selectedRowForSheet,
+                        closeBottomSheet,
+                     )}
+                  </div>
+               </motion.div>
+            </motion.div>
+         </AnimatePresence>
+      );
+   };
+
+   const renderMobileSettings = () => {
+      if (!showMobileSettings) return null;
+      const viewOptions = [
+         {
+            value: "list" as MobileViewMode,
+            label: "Lista",
+            icon: <FiList size={18} />,
+         },
+         {
+            value: "compact-list" as MobileViewMode,
+            label: "Compacta",
+            icon: <FiMenu size={18} />,
+         },
+         {
+            value: "cards" as MobileViewMode,
+            label: "Tarjetas",
+            icon: <FiGrid size={18} />,
+         },
+         {
+            value: "mini-cards" as MobileViewMode,
+            label: "Cuadrícula",
+            icon: <FiGrid size={16} />,
+         },
+         {
+            value: "timeline" as MobileViewMode,
+            label: "Timeline",
+            icon: <FiList size={18} />,
+         },
+         {
+            value: "detailed-list" as MobileViewMode,
+            label: "Detalles",
+            icon: <FiEye size={18} />,
+         },
+      ];
+      return (
+         <AnimatePresence>
+            <motion.div
+               className="fixed inset-0 z-50"
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               exit={{ opacity: 0 }}>
+               <motion.div
+                  className="absolute inset-0 bg-black bg-opacity-40"
+                  onClick={() => setShowMobileSettings(false)}
+               />
+               <motion.div
+                  className="absolute bottom-0 left-0 right-0 bg-white shadow-2xl rounded-t-2xl"
+                  initial={{ y: "100%" }}
+                  animate={{ y: 0 }}
+                  exit={{ y: "100%" }}
+                  transition={{ type: "spring", damping: 30, stiffness: 300 }}>
+                  <div className="px-5 py-4">
+                     <div className="flex justify-center mb-4">
+                        <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
+                     </div>
+                     <div className="flex items-center justify-between mb-5">
+                        <h3 className="text-lg font-bold text-gray-900">
+                           Vista de tabla
+                        </h3>
+                        <button
+                           onClick={() => setShowMobileSettings(false)}
+                           className="flex items-center justify-center w-8 h-8 text-gray-500 bg-gray-100 rounded-full">
+                           <FiX size={16} />
+                        </button>
+                     </div>
+                     <div className="mb-5">
+                        <label className="block mb-3 text-xs font-bold tracking-wider text-gray-500 uppercase">
+                           Tipo de vista
+                        </label>
+                        <div className="pb-2 overflow-x-auto">
+                           <div className="flex gap-2 min-w-max">
+                              {viewOptions.map((v) => (
+                                 <button
+                                    key={v.value}
+                                    onClick={() => setMobileViewMode(v.value)}
+                                    className={`flex-shrink-0 w-24 flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all text-sm font-medium ${
+                                       mobileViewMode === v.value
+                                          ? "border-[#9B2242] bg-[#fceef2] text-[#9B2242]"
+                                          : "border-gray-200 bg-white text-gray-600"
+                                    }`}>
+                                    {v.icon}
+                                    <span className="text-xs">{v.label}</span>
+                                 </button>
+                              ))}
+                           </div>
+                        </div>
+                     </div>
+                     <div className="mb-5">
+                        <label className="block mb-3 text-xs font-bold tracking-wider text-gray-500 uppercase">
+                           Densidad
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                           {[
+                              {
+                                 value: "compact" as MobileDensity,
+                                 label: "Compacta",
+                              },
+                              {
+                                 value: "comfortable" as MobileDensity,
+                                 label: "Cómoda",
+                              },
+                              {
+                                 value: "spacious" as MobileDensity,
+                                 label: "Amplia",
+                              },
+                           ].map((d) => (
+                              <button
+                                 key={d.value}
+                                 onClick={() => setMobileDensity(d.value)}
+                                 className={`py-2.5 px-3 rounded-xl border-2 transition-all text-sm font-medium ${mobileDensity === d.value ? "border-[#9B2242] bg-[#fceef2] text-[#9B2242]" : "border-gray-200 bg-white text-gray-600"}`}>
+                                 {d.label}
+                              </button>
+                           ))}
+                        </div>
+                     </div>
+                     <button
+                        onClick={() => setShowMobileSettings(false)}
+                        className="w-full py-3.5 bg-[#9B2242] text-white rounded-xl font-semibold text-sm">
+                        Aplicar
+                     </button>
+                  </div>
+               </motion.div>
+            </motion.div>
+         </AnimatePresence>
+      );
+   };
+
+   // ---------- States ----------
+   const renderLoadingState = () => (
+      <div className="py-12 text-center">
+         <motion.div className="flex items-center justify-center gap-3 text-gray-500">
+            <motion.div
+               className="w-8 h-8 border-3 border-[#9B2242] border-t-transparent rounded-full"
+               animate={{ rotate: 360 }}
+               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            />
+            Cargando datos...
+         </motion.div>
+      </div>
+   );
+   const renderErrorState = () => (
+      <div className="py-8 text-center text-red-500">
+         <div className="flex items-center justify-center gap-2">
+            <FiAlertCircle />
+            {error}
+         </div>
+      </div>
+   );
+   const renderEmptyState = () => (
+      <div className="py-12 text-center text-gray-500">
+         <div className="flex flex-col items-center justify-center gap-3">
+            <FiInbox className="text-4xl text-gray-300" />
+            <span>No se encontraron resultados</span>
+            {(globalFilter || Object.values(columnFilters).some(Boolean)) && (
+               <button
+                  onClick={clearAll}
+                  className="text-[#9B2242] hover:text-[#7A1B35] font-medium mt-2 px-4 py-2 rounded-lg border border-[#9B2242]/30 hover:bg-[#fceef2]">
+                  Limpiar filtros
+               </button>
+            )}
+         </div>
+      </div>
+   );
+
+   useImperativeHandle(
+      ref,
+      () => ({
+         clearAllFilters: clearAll,
+         clearColumnFilters: () => {
+            setColumnFilters({});
+            setCurrentPage(1);
+         },
+         clearGlobalFilter: () => {
+            setGlobalFilter("");
+            setCurrentPage(1);
+         },
+         clearSelection: resetSelection,
+         selectAllRows: (onlyFiltered = false) => {
+            const source = onlyFiltered ? flatData : safeData;
+            const ids = new Set(source.map((r, i) => getRowId(r as any, i)));
+            setSelectedRows(ids);
+            setSelectAll(true);
+            setAllDataSelected(true);
+            onSelectAllRows?.(true, source);
+         },
+         deselectAllRows: () => {
+            resetSelection();
+            onSelectAllRows?.(false, []);
+         },
+         getSelectedRows: () => selectedData,
+         getFilteredRows: () => sortedData,
+         setTheme,
+         setDensity,
+         setViewMode,
+         goToPage: (page) =>
+            setCurrentPage(Math.max(1, Math.min(page, totalPages))),
+         goToFirstPage: () => setCurrentPage(1),
+         goToLastPage: () => setCurrentPage(totalPages),
+         exportExcel: (onlySelected = false) =>
+            exportExcel(getExportData(onlySelected, sortedData)),
+         exportCSV: (onlySelected = false) =>
+            exportCSV(getExportData(onlySelected, sortedData)),
+         exportJSON: (onlySelected = false) =>
+            exportJSON(getExportData(onlySelected, sortedData)),
+         toggleFullscreen: () => setIsFullscreen((f) => !f),
+         refresh: () => setColumns((c) => [...c]),
+      }),
+      [selectedData, sortedData, totalPages, safeData, flatData, getRowId],
+   );
+
    const activeCount = [globalFilter, ...Object.values(columnFilters)].filter(
       Boolean,
    ).length;
    const totalSelected = selectedRows.size;
 
+   // ==================== MAIN RENDER ====================
    return (
       <div
          ref={containerRef}
@@ -3171,147 +4461,66 @@ const CustomTableInner = <T extends object>(
             fontFamily: "'DM Sans', 'Inter', system-ui, sans-serif",
             display: "flex",
             flexDirection: "column",
-            height: isFullscreen ? "100vh" : undefined,
+            height: isFullscreen ? "100vh" : "100%", // ← "100%" en lugar de undefined
             width: "100%",
          }}>
-         {/* HEADER */}
-         <div
-            style={{
-               background: C.white,
-               borderBottom: `1px solid ${C.border}`,
-               padding: "16px 20px 14px",
-               flexShrink: 0,
-               position: "relative",
-            }}>
-            {(title || (headerActions && headerActions(data))) && (
-               <div
-                  style={{
-                     display: "flex",
-                     alignItems: "center",
-                     justifyContent: "space-between",
-                     marginBottom: 14,
-                     flexWrap: "wrap",
-                     gap: 10,
-                  }}>
-                  {title && (
-                     <div>
-                        <h2
-                           style={{
-                              fontSize: 17,
-                              fontWeight: 800,
-                              color: C.text1,
-                              margin: 0,
-                              letterSpacing: "-0.02em",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                           }}>
-                           {title}
-                           {groupBy && (
-                              <span
-                                 style={{
-                                    fontSize: 11,
-                                    background: C.rubyLight,
-                                    color: C.ruby,
-                                    borderRadius: 100,
-                                    padding: "2px 8px",
-                                    fontWeight: 700,
-                                 }}>
-                                 Agrupado:{" "}
-                                 {
-                                    columns.find(
-                                       (c) => c.field === groupBy.field,
-                                    )?.headerName
-                                 }
-                              </span>
-                           )}
-                        </h2>
-                        {subtitle && (
-                           <p
-                              style={{
-                                 fontSize: 12,
-                                 color: C.text3,
-                                 margin: "3px 0 0",
-                              }}>
-                              {subtitle}
-                           </p>
-                        )}
-                     </div>
-                  )}
-                  {headerActions && (
-                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        {headerActions(data)}
-                     </div>
-                  )}
-               </div>
-            )}
-
-            {/* TOOLBAR */}
+         {/* ==================== MOBILE HEADER ==================== */}
+         {isMobile ? (
             <div
                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  flexWrap: "wrap",
+                  background: C.white,
+                  borderBottom: `1px solid ${C.border}`,
+                  padding: "12px 14px 10px",
+                  flexShrink: 0,
                }}>
-               {/* Boton de Refrescar */}
-               <Tooltip content="Refrescar Tabla">
-                  <CustomButton onClick={refreshData}>
-                     <icons.Lu.LuRefreshCw className="w-4 h-4" />
-                  </CustomButton>
-               </Tooltip>
-               {/* Search */}
-               <div
-                  style={{
-                     display: "flex",
-                     alignItems: "center",
-                     gap: 9,
-                     flex: "1 1 220px",
-                     minWidth: 0,
-                     background: C.surface,
-                     border: `1.5px solid ${
-                        globalFilter ? "rgba(155,34,66,0.35)" : C.border
-                     }`,
-                     borderRadius: C.r6,
-                     padding: "8px 13px",
-                     boxShadow: globalFilter
-                        ? `0 0 0 3px ${C.rubyGlow}`
-                        : "none",
-                     transition: "all 0.2s",
-                  }}>
-                  <FiSearch
-                     size={14}
+               {/* Row 1: Search + Actions */}
+               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  {/* Search bar */}
+                  <div
                      style={{
-                        color: globalFilter ? C.ruby : C.text3,
-                        flexShrink: 0,
-                     }}
-                  />
-                  <input
-                     ref={searchRef}
-                     type="text"
-                     placeholder="Buscar…"
-                     value={globalFilter}
-                     onChange={(e) => {
-                        setGlobalFilter(e.target.value);
-                        setCurrentPage(1);
-                     }}
-                     style={{
-                        background: "none",
-                        border: "none",
-                        outline: "none",
-                        color: C.text1,
-                        fontSize: 13,
                         flex: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        background: C.surface,
+                        border: `1.5px solid ${globalFilter ? "rgba(155,34,66,0.4)" : C.border}`,
+                        borderRadius: C.r6,
+                        padding: "9px 12px",
+                        boxShadow: globalFilter
+                           ? `0 0 0 3px ${C.rubyGlow}`
+                           : "none",
+                        transition: "all 0.2s",
                         minWidth: 0,
-                        fontFamily: "inherit",
-                     }}
-                  />
-                  <AnimatePresence>
+                     }}>
+                     <FiSearch
+                        size={14}
+                        style={{
+                           color: globalFilter ? C.ruby : C.text3,
+                           flexShrink: 0,
+                        }}
+                     />
+                     <input
+                        ref={searchRef}
+                        type="text"
+                        placeholder="Buscar…"
+                        value={globalFilter}
+                        onChange={(e) => {
+                           setGlobalFilter(e.target.value);
+                           setCurrentPage(1);
+                        }}
+                        style={{
+                           background: "none",
+                           border: "none",
+                           outline: "none",
+                           color: C.text1,
+                           fontSize: 14,
+                           flex: 1,
+                           minWidth: 0,
+                           fontFamily: "inherit",
+                        }}
+                     />
                      {globalFilter && (
-                        <motion.button
-                           initial={{ opacity: 0, scale: 0.7 }}
-                           animate={{ opacity: 1, scale: 1 }}
-                           exit={{ opacity: 0, scale: 0.7 }}
+                        <button
                            onClick={() => setGlobalFilter("")}
                            style={{
                               background: "none",
@@ -3322,505 +4531,733 @@ const CustomTableInner = <T extends object>(
                               color: C.text3,
                            }}>
                            <FiX size={13} />
-                        </motion.button>
+                        </button>
                      )}
-                  </AnimatePresence>
-               </div>
-               <div
-                  style={{
-                     display: "flex",
-                     gap: 4,
-                     marginLeft: "auto",
-                     flexWrap: "wrap",
-                     justifyContent: "flex-end",
-                     alignItems: "center",
-                  }}>
-                  {/* View mode toggle */}
-                  {enableViewToggle && (
-                     <div
-                        style={{
-                           display: "flex",
-                           background: C.surface,
-                           border: `1px solid ${C.border}`,
-                           borderRadius: C.r6,
-                           padding: 3,
-                           gap: 2,
-                        }}>
-                        {(
-                           [
-                              {
-                                 mode: "table",
-                                 icon: <FiMenu size={13} />,
-                                 title: "Tabla",
-                              },
-                              {
-                                 mode: "cards",
-                                 icon: <FiGrid size={13} />,
-                                 title: "Tarjetas",
-                              },
-                              {
-                                 mode: "compact",
-                                 icon: <FiList size={13} />,
-                                 title: "Compacto",
-                              },
-                           ] as const
-                        ).map(({ mode, icon, title: t }) => (
-                           <button
-                              key={mode}
-                              onClick={() => setViewMode(mode)}
-                              title={t}
-                              style={{
-                                 width: 26,
-                                 height: 26,
-                                 display: "flex",
-                                 alignItems: "center",
-                                 justifyContent: "center",
-                                 borderRadius: 6,
-                                 border: "none",
-                                 cursor: "pointer",
-                                 background:
-                                    viewMode === mode ? C.ruby : "transparent",
-                                 color: viewMode === mode ? "#fff" : C.text3,
-                                 transition: "all 0.15s",
-                              }}>
-                              {icon}
-                           </button>
-                        ))}
-                     </div>
-                  )}
+                  </div>
 
-                  {/* Density control */}
-                  {enableDensityControl && (
-                     <div
-                        style={{
-                           display: "flex",
-                           background: C.surface,
-                           border: `1px solid ${C.border}`,
-                           borderRadius: C.r6,
-                           padding: 3,
-                           gap: 2,
-                        }}>
-                        {(
-                           [
-                              "compact",
-                              "comfortable",
-                              "spacious",
-                           ] as DensityMode[]
-                        ).map((d) => (
-                           <button
-                              key={d}
-                              onClick={() => setDensity(d)}
-                              title={d}
-                              style={{
-                                 width: 24,
-                                 height: 24,
-                                 display: "flex",
-                                 alignItems: "center",
-                                 justifyContent: "center",
-                                 borderRadius: 6,
-                                 border: "none",
-                                 cursor: "pointer",
-                                 background:
-                                    density === d ? C.ruby : "transparent",
-                                 color: density === d ? "#fff" : C.text3,
-                                 transition: "all 0.15s",
-                              }}>
-                              <FiGrid
-                                 size={
-                                    d === "compact"
-                                       ? 9
-                                       : d === "comfortable"
-                                         ? 11
-                                         : 13
-                                 }
-                              />
-                           </button>
-                        ))}
-                     </div>
-                  )}
-
-                  <IconBtn
-                     onClick={() => setShowStats((s) => !s)}
-                     title="Estadísticas numéricas"
-                     active={showStats}
-                     C={C}>
-                     <FiBarChart2 size={14} />
-                  </IconBtn>
-
-                  {enableGroupBy && (
-                     <IconBtn
-                        onClick={() => setShowGroupPanel((p) => !p)}
-                        title="Agrupar filas"
-                        active={!!groupBy || showGroupPanel}
-                        C={C}>
-                        <FiLayout size={14} />
-                     </IconBtn>
-                  )}
-
-                  {enableSavedFilters && (
-                     <IconBtn
-                        onClick={() => {
-                           setShowFilterLibrary((p) => !p);
-                           setShowColumnManager(false);
-                           setShowExportMenu(false);
-                        }}
-                        title="Filtros guardados"
-                        active={showFilterLibrary || savedFilters.length > 0}
-                        C={C}>
-                        <FiBookmark size={14} />
-                        {savedFilters.length > 0 && (
-                           <span
-                              style={{
-                                 position: "absolute",
-                                 top: 3,
-                                 right: 3,
-                                 width: 6,
-                                 height: 6,
-                                 borderRadius: "50%",
-                                 background: C.ruby,
-                              }}
-                           />
-                        )}
-                     </IconBtn>
-                  )}
-
-                  {enableColumnVisibility && (
-                     <IconBtn
-                        onClick={() => {
-                           setShowColumnManager((p) => !p);
-                           setShowFilterLibrary(false);
-                           setShowExportMenu(false);
-                        }}
-                        title="Gestionar columnas"
-                        active={showColumnManager || hiddenColumns.size > 0}
-                        C={C}>
-                        <FiColumns size={14} />
-                     </IconBtn>
-                  )}
-
-                  {enableThemeToggle && (
-                     <IconBtn
-                        onClick={() =>
-                           setTheme((t) => (t === "light" ? "dark" : "light"))
-                        }
-                        title={`Modo ${theme === "light" ? "oscuro" : "claro"}`}
-                        C={C}>
-                        {theme === "light" ? (
-                           <FiMoon size={14} />
-                        ) : (
-                           <FiSun size={14} />
-                        )}
-                     </IconBtn>
-                  )}
-
-                  {enableFullscreen && (
-                     <IconBtn
-                        onClick={() => setIsFullscreen((f) => !f)}
-                        title="Pantalla completa"
-                        C={C}>
-                        {isFullscreen ? (
-                           <FiMinimize2 size={14} />
-                        ) : (
-                           <FiMaximize2 size={14} />
-                        )}
-                     </IconBtn>
-                  )}
-
-                  {/* Select all dataset button */}
-                  {enableRowSelection && enableSelectAllRows && (
+                  {/* Filter button - only when quickFilters enabled */}
+                  {mobileConfig?.quickFilters?.enabled && (
                      <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => handleSelectAllRows(false)}
-                        title={
-                           allDataSelected
-                              ? "Deseleccionar todos"
-                              : `Seleccionar los ${safeData.length} registros`
-                        }
-                        style={{
-                           display: "flex",
-                           alignItems: "center",
-                           gap: 5,
-                           padding: "7px 12px",
-                           borderRadius: C.r6,
-                           background: allDataSelected
-                              ? C.rubyLight
-                              : C.surface,
-                           border: `1px solid ${allDataSelected ? C.ruby : C.border}`,
-                           color: allDataSelected ? C.ruby : C.text2,
-                           fontSize: 11,
-                           fontWeight: 700,
-                           cursor: "pointer",
-                           fontFamily: "inherit",
-                           whiteSpace: "nowrap",
-                           transition: "all 0.15s",
-                        }}>
-                        <FiCheckSquare size={13} />
-                        {allDataSelected
-                           ? "Desel. todo"
-                           : `Sel. todo (${safeData.length})`}
-                     </motion.button>
-                  )}
-
-                  {enableExportOptions && (
-                     <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.97 }}
+                        whileTap={{ scale: 0.92 }}
                         onClick={() => {
-                           setShowExportMenu((p) => !p);
-                           setShowColumnManager(false);
-                           setShowFilterLibrary(false);
+                           setTempFilters({ ...activeFilters });
+                           setShowFilterModal(true);
                         }}
                         style={{
-                           display: "flex",
-                           alignItems: "center",
-                           gap: 5,
-                           padding: "7px 12px",
-                           borderRadius: C.r6,
-                           background: showExportMenu
-                              ? "rgba(34,197,94,0.15)"
-                              : "rgba(34,197,94,0.08)",
-                           border: "1px solid rgba(34,197,94,0.25)",
-                           color: C.green,
-                           fontSize: 11,
-                           fontWeight: 700,
-                           cursor: "pointer",
-                           fontFamily: "inherit",
                            position: "relative",
+                           width: 40,
+                           height: 40,
+                           display: "flex",
+                           alignItems: "center",
+                           justifyContent: "center",
+                           borderRadius: C.r6,
+                           border: `1.5px solid ${mobileActiveFilterCount > 0 ? C.ruby : C.border}`,
+                           background:
+                              mobileActiveFilterCount > 0
+                                 ? C.rubyLight
+                                 : C.surface,
+                           cursor: "pointer",
+                           color:
+                              mobileActiveFilterCount > 0 ? C.ruby : C.text2,
+                           flexShrink: 0,
                         }}>
-                        <FiDownload size={13} /> Exportar
-                        {enableRowSelection && selectedData.length > 0 && (
+                        <FiFilter size={16} />
+                        {mobileActiveFilterCount > 0 && (
                            <span
                               style={{
                                  position: "absolute",
-                                 top: -4,
-                                 right: -4,
+                                 top: -6,
+                                 right: -6,
                                  background: C.ruby,
-                                 color: "white",
-                                 borderRadius: 100,
-                                 padding: "2px 5px",
-                                 fontSize: 9,
+                                 color: "#fff",
+                                 borderRadius: "50%",
+                                 width: 18,
+                                 height: 18,
+                                 display: "flex",
+                                 alignItems: "center",
+                                 justifyContent: "center",
+                                 fontSize: 10,
                                  fontWeight: 800,
-                                 lineHeight: 1,
+                                 border: `2px solid ${C.white}`,
                               }}>
-                              {selectedData.length}
+                              {mobileActiveFilterCount}
                            </span>
                         )}
                      </motion.button>
                   )}
+
+                  {/* View settings button - only when activeViews enabled */}
+                  {mobileConfig?.activeViews && (
+                     <motion.button
+                        whileTap={{ scale: 0.92 }}
+                        onClick={() => setShowMobileSettings(true)}
+                        style={{
+                           width: 40,
+                           height: 40,
+                           display: "flex",
+                           alignItems: "center",
+                           justifyContent: "center",
+                           borderRadius: C.r6,
+                           border: `1.5px solid ${C.border}`,
+                           background: C.surface,
+                           cursor: "pointer",
+                           color: C.text2,
+                           flexShrink: 0,
+                        }}>
+                        <FiSettings size={16} />
+                     </motion.button>
+                  )}
+
+                  {/* Refresh */}
+                  {refreshData && (
+                     <motion.button
+                        whileTap={{ scale: 0.9, rotate: 180 }}
+                        onClick={refreshData}
+                        style={{
+                           width: 40,
+                           height: 40,
+                           display: "flex",
+                           alignItems: "center",
+                           justifyContent: "center",
+                           borderRadius: C.r6,
+                           border: `1.5px solid ${C.border}`,
+                           background: C.surface,
+                           cursor: "pointer",
+                           color: C.text2,
+                           flexShrink: 0,
+                        }}>
+                        <FiRefreshCw size={15} />
+                     </motion.button>
+                  )}
+               </div>
+
+               {/* Active filter chips */}
+               {renderActiveFiltersChips()}
+
+               {/* Stats row */}
+               <div
+                  style={{
+                     display: "flex",
+                     alignItems: "center",
+                     justifyContent: "space-between",
+                     marginTop: 8,
+                  }}>
+                  <span style={{ fontSize: 11, color: C.text3 }}>
+                     <strong style={{ color: C.text2, fontWeight: 700 }}>
+                        {totalRows.toLocaleString()}
+                     </strong>{" "}
+                     registros
+                     {activeCount > 0 && (
+                        <span style={{ color: C.ruby }}>
+                           {" "}
+                           · {safeData.length - totalRows} ocultos
+                        </span>
+                     )}
+                  </span>
+                  {activeCount > 0 && (
+                     <button
+                        onClick={clearAll}
+                        style={{
+                           fontSize: 11,
+                           color: C.ruby,
+                           background: "none",
+                           border: "none",
+                           cursor: "pointer",
+                           fontWeight: 600,
+                           display: "flex",
+                           alignItems: "center",
+                           gap: 3,
+                        }}>
+                        <FiX size={10} /> Limpiar
+                     </button>
+                  )}
                </div>
             </div>
-
-            {/* STATUS BAR */}
+         ) : (
+            /* ==================== DESKTOP HEADER ==================== */
             <div
                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 14,
-                  marginTop: 10,
-                  flexWrap: "wrap",
+                  background: C.white,
+                  borderBottom: `1px solid ${C.border}`,
+                  padding: "16px 20px 14px",
+                  flexShrink: 0,
+                  position: "relative",
                }}>
-               <span style={{ fontSize: 11, color: C.text3 }}>
-                  <strong style={{ color: C.text2, fontWeight: 700 }}>
-                     {totalRows.toLocaleString()}
-                  </strong>{" "}
-                  registros
-                  {activeCount > 0 && (
-                     <>
-                        {" "}
-                        ·{" "}
-                        <span style={{ color: C.ruby }}>
-                           {safeData.length - totalRows} ocultos
-                        </span>
-                     </>
-                  )}
-               </span>
-
-               <AnimatePresence>
-                  {totalSelected > 0 && (
-                     <motion.span
-                        initial={{ opacity: 0, scale: 0.85 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.85 }}
-                        style={{
-                           fontSize: 11,
-                           fontWeight: 700,
-                           background: C.rubyLight,
-                           color: C.ruby,
-                           borderRadius: 100,
-                           padding: "2px 10px",
-                           display: "flex",
-                           alignItems: "center",
-                           gap: 4,
-                        }}>
-                        <FiCheck size={10} />
-                        {allDataSelected
-                           ? `Todos (${totalSelected}) seleccionados`
-                           : `${totalSelected} seleccionado${
-                                totalSelected !== 1 ? "s" : ""
-                             }`}
-                        <button
-                           onClick={resetSelection}
-                           style={{
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              padding: 0,
-                              color: C.ruby,
-                              display: "flex",
-                              marginLeft: 2,
-                           }}>
-                           <FiX size={10} />
-                        </button>
-                     </motion.span>
-                  )}
-               </AnimatePresence>
-
-               <AnimatePresence>
-                  {groupBy && (
-                     <motion.span
-                        initial={{ opacity: 0, scale: 0.85 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.85 }}
-                        style={{
-                           fontSize: 11,
-                           fontWeight: 700,
-                           background: C.blueLight,
-                           color: C.blue,
-                           borderRadius: 100,
-                           padding: "2px 10px",
-                           display: "flex",
-                           alignItems: "center",
-                           gap: 4,
-                        }}>
-                        <FiLayout size={10} /> Agrupado
-                        <button
-                           onClick={() => setGroupBy(null)}
-                           style={{
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              padding: 0,
-                              color: C.blue,
-                              display: "flex",
-                              marginLeft: 2,
-                           }}>
-                           <FiX size={10} />
-                        </button>
-                     </motion.span>
-                  )}
-               </AnimatePresence>
-
-               {sortConfig.field && (
-                  <span
-                     style={{
-                        fontSize: 11,
-                        color: C.text3,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
-                     }}>
-                     Orden:{" "}
-                     <strong style={{ color: C.text2 }}>
-                        {
-                           columns.find((c) => c.field === sortConfig.field)
-                              ?.headerName
-                        }
-                     </strong>
-                     ({sortConfig.direction === "asc" ? "A→Z" : "Z→A"})
-                  </span>
-               )}
-
-               {activeCount > 0 && (
-                  <motion.button
-                     whileHover={{ scale: 1.02 }}
-                     whileTap={{ scale: 0.97 }}
-                     onClick={clearAll}
-                     style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 5,
-                        padding: "4px 10px",
-                        borderRadius: C.r6,
-                        background: C.rubyLight,
-                        border: `1px solid rgba(155,34,66,0.2)`,
-                        color: C.ruby,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                     }}>
-                     <FiX size={10} /> Limpiar ({activeCount})
-                  </motion.button>
-               )}
-            </div>
-
-            {renderColumnManager()}
-            {renderExportMenu()}
-            {renderFilterLibrary()}
-         </div>
-
-         {/* GROUP PANEL */}
-         <AnimatePresence>
-            {showGroupPanel && enableGroupBy && (
-               <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  style={{
-                     overflow: "hidden",
-                     borderBottom: `1px solid ${C.border}`,
-                     background: C.pageBg,
-                  }}>
+               {(title || (headerActions && headerActions(selectedData))) && (
                   <div
                      style={{
-                        padding: "10px 20px",
                         display: "flex",
                         alignItems: "center",
-                        gap: 8,
+                        justifyContent: "space-between",
+                        marginBottom: 14,
                         flexWrap: "wrap",
+                        gap: 10,
                      }}>
+                     {title && (
+                        <div>
+                           <h2
+                              style={{
+                                 fontSize: 17,
+                                 fontWeight: 800,
+                                 color: C.text1,
+                                 margin: 0,
+                                 letterSpacing: "-0.02em",
+                                 display: "flex",
+                                 alignItems: "center",
+                                 gap: 8,
+                              }}>
+                              {title}
+                              {groupBy && (
+                                 <span
+                                    style={{
+                                       fontSize: 11,
+                                       background: C.rubyLight,
+                                       color: C.ruby,
+                                       borderRadius: 100,
+                                       padding: "2px 8px",
+                                       fontWeight: 700,
+                                    }}>
+                                    Agrupado:{" "}
+                                    {
+                                       columns.find(
+                                          (c) => c.field === groupBy.field,
+                                       )?.headerName
+                                    }
+                                 </span>
+                              )}
+                           </h2>
+                           {subtitle && (
+                              <p
+                                 style={{
+                                    fontSize: 12,
+                                    color: C.text3,
+                                    margin: "3px 0 0",
+                                 }}>
+                                 {subtitle}
+                              </p>
+                           )}
+                        </div>
+                     )}
+                     {headerActions && (
+                        <div
+                           style={{
+                              display: "flex",
+                              gap: 8,
+                              flexWrap: "wrap",
+                           }}>
+                           {headerActions(selectedData)}
+                        </div>
+                     )}
+                  </div>
+               )}
+               <div
+                  style={{
+                     display: "flex",
+                     alignItems: "center",
+                     gap: 8,
+                     flexWrap: "wrap",
+                  }}>
+                  {refreshData && (
+                     <IconBtn onClick={refreshData} title="Refrescar" C={C}>
+                        <FiRefreshCw size={14} />
+                     </IconBtn>
+                  )}
+                  <div
+                     style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 9,
+                        flex: "1 1 220px",
+                        minWidth: 0,
+                        background: C.surface,
+                        border: `1.5px solid ${globalFilter ? "rgba(155,34,66,0.35)" : C.border}`,
+                        borderRadius: C.r6,
+                        padding: "8px 13px",
+                        boxShadow: globalFilter
+                           ? `0 0 0 3px ${C.rubyGlow}`
+                           : "none",
+                        transition: "all 0.2s",
+                     }}>
+                     <FiSearch
+                        size={14}
+                        style={{
+                           color: globalFilter ? C.ruby : C.text3,
+                           flexShrink: 0,
+                        }}
+                     />
+                     <input
+                        ref={searchRef}
+                        type="text"
+                        placeholder="Buscar…"
+                        value={globalFilter}
+                        onChange={(e) => {
+                           setGlobalFilter(e.target.value);
+                           setCurrentPage(1);
+                        }}
+                        style={{
+                           background: "none",
+                           border: "none",
+                           outline: "none",
+                           color: C.text1,
+                           fontSize: 13,
+                           flex: 1,
+                           minWidth: 0,
+                           fontFamily: "inherit",
+                        }}
+                     />
+                     <AnimatePresence>
+                        {globalFilter && (
+                           <motion.button
+                              initial={{ opacity: 0, scale: 0.7 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.7 }}
+                              onClick={() => setGlobalFilter("")}
+                              style={{
+                                 background: "none",
+                                 border: "none",
+                                 cursor: "pointer",
+                                 padding: 0,
+                                 display: "flex",
+                                 color: C.text3,
+                              }}>
+                              <FiX size={13} />
+                           </motion.button>
+                        )}
+                     </AnimatePresence>
+                  </div>
+                  <div
+                     style={{
+                        display: "flex",
+                        gap: 4,
+                        marginLeft: "auto",
+                        flexWrap: "wrap",
+                        justifyContent: "flex-end",
+                     }}>
+                     {enableDensityControl && (
+                        <div
+                           style={{
+                              display: "flex",
+                              background: C.surface,
+                              border: `1px solid ${C.border}`,
+                              borderRadius: C.r6,
+                              padding: 3,
+                              gap: 2,
+                           }}>
+                           {(
+                              [
+                                 "compact",
+                                 "comfortable",
+                                 "spacious",
+                              ] as DensityMode[]
+                           ).map((d) => (
+                              <button
+                                 key={d}
+                                 onClick={() => setDensity(d)}
+                                 title={d}
+                                 style={{
+                                    width: 24,
+                                    height: 24,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    borderRadius: 6,
+                                    border: "none",
+                                    cursor: "pointer",
+                                    background:
+                                       density === d ? C.ruby : "transparent",
+                                    color: density === d ? "#fff" : C.text3,
+                                    transition: "all 0.15s",
+                                 }}>
+                                 <FiGrid
+                                    size={
+                                       d === "compact"
+                                          ? 9
+                                          : d === "comfortable"
+                                            ? 11
+                                            : 13
+                                    }
+                                 />
+                              </button>
+                           ))}
+                        </div>
+                     )}
+                     <IconBtn
+                        onClick={() => setShowStats((s) => !s)}
+                        title="Estadísticas numéricas"
+                        active={showStats}
+                        C={C}>
+                        <FiBarChart2 size={14} />
+                     </IconBtn>
+                     {enableGroupBy && (
+                        <IconBtn
+                           onClick={() => setShowGroupPanel((p) => !p)}
+                           title="Agrupar filas"
+                           active={!!groupBy}
+                           C={C}>
+                           <FiLayout size={14} />
+                        </IconBtn>
+                     )}
+                     {enableSavedFilters && (
+                        <IconBtn
+                           onClick={() => {
+                              setShowFilterLibrary((p) => !p);
+                              setShowColumnManager(false);
+                              setShowExportMenu(false);
+                           }}
+                           title="Filtros guardados"
+                           active={showFilterLibrary}
+                           C={C}>
+                           <FiBookmark size={14} />
+                        </IconBtn>
+                     )}
+                     {enableColumnVisibility && (
+                        <IconBtn
+                           onClick={() => {
+                              setShowColumnManager((p) => !p);
+                              setShowFilterLibrary(false);
+                              setShowExportMenu(false);
+                           }}
+                           title="Gestionar columnas"
+                           active={showColumnManager || hiddenColumns.size > 0}
+                           C={C}>
+                           <FiColumns size={14} />
+                        </IconBtn>
+                     )}
+                     {enableThemeToggle && (
+                        <IconBtn
+                           onClick={() =>
+                              setTheme((t) =>
+                                 t === "light" ? "dark" : "light",
+                              )
+                           }
+                           title={`Modo ${theme === "light" ? "oscuro" : "claro"}`}
+                           C={C}>
+                           {theme === "light" ? (
+                              <FiMoon size={14} />
+                           ) : (
+                              <FiSun size={14} />
+                           )}
+                        </IconBtn>
+                     )}
+                     {enableFullscreen && (
+                        <IconBtn
+                           onClick={() => setIsFullscreen((f) => !f)}
+                           title="Pantalla completa"
+                           C={C}>
+                           {isFullscreen ? (
+                              <FiMinimize2 size={14} />
+                           ) : (
+                              <FiMaximize2 size={14} />
+                           )}
+                        </IconBtn>
+                     )}
+                     {enableRowSelection && enableSelectAllRows && (
+                        <button
+                           onClick={() => handleSelectAllRows(false)}
+                           title={
+                              allDataSelected
+                                 ? "Deseleccionar todos"
+                                 : `Seleccionar los ${safeData.length} registros`
+                           }
+                           style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 5,
+                              padding: "7px 12px",
+                              borderRadius: C.r6,
+                              background: allDataSelected
+                                 ? C.rubyLight
+                                 : C.surface,
+                              border: `1px solid ${allDataSelected ? C.ruby : C.border}`,
+                              color: allDataSelected ? C.ruby : C.text2,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                           }}>
+                           <FiCheckSquare size={13} />
+                           {allDataSelected
+                              ? "Desel. todo"
+                              : `Sel. todo (${safeData.length})`}
+                        </button>
+                     )}
+                     {enableExportOptions && (
+                        <button
+                           onClick={() => {
+                              setShowExportMenu((p) => !p);
+                              setShowColumnManager(false);
+                              setShowFilterLibrary(false);
+                           }}
+                           style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 5,
+                              padding: "7px 12px",
+                              borderRadius: C.r6,
+                              background: showExportMenu
+                                 ? "rgba(34,197,94,0.15)"
+                                 : "rgba(34,197,94,0.08)",
+                              border: "1px solid rgba(34,197,94,0.25)",
+                              color: C.green,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              position: "relative",
+                           }}>
+                           <FiDownload size={13} /> Exportar
+                           {enableRowSelection && selectedData.length > 0 && (
+                              <span
+                                 style={{
+                                    position: "absolute",
+                                    top: -4,
+                                    right: -4,
+                                    background: C.ruby,
+                                    color: "white",
+                                    borderRadius: 100,
+                                    padding: "2px 5px",
+                                    fontSize: 9,
+                                    fontWeight: 800,
+                                    lineHeight: 1,
+                                 }}>
+                                 {selectedData.length}
+                              </span>
+                           )}
+                        </button>
+                     )}
+                  </div>
+               </div>
+               <div
+                  style={{
+                     display: "flex",
+                     alignItems: "center",
+                     gap: 14,
+                     marginTop: 10,
+                     flexWrap: "wrap",
+                  }}>
+                  <span style={{ fontSize: 11, color: C.text3 }}>
+                     <strong style={{ color: C.text2, fontWeight: 700 }}>
+                        {totalRows.toLocaleString()}
+                     </strong>{" "}
+                     registros
+                     {activeCount > 0 && (
+                        <>
+                           {" "}
+                           ·{" "}
+                           <span style={{ color: C.ruby }}>
+                              {safeData.length - totalRows} ocultos
+                           </span>
+                        </>
+                     )}
+                  </span>
+                  <AnimatePresence>
+                     {totalSelected > 0 && (
+                        <motion.span
+                           initial={{ opacity: 0, scale: 0.85 }}
+                           animate={{ opacity: 1, scale: 1 }}
+                           exit={{ opacity: 0, scale: 0.85 }}
+                           style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              background: C.rubyLight,
+                              color: C.ruby,
+                              borderRadius: 100,
+                              padding: "2px 10px",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                           }}>
+                           <FiCheck size={10} />
+                           {allDataSelected
+                              ? `Todos (${totalSelected}) seleccionados`
+                              : `${totalSelected} seleccionado${totalSelected !== 1 ? "s" : ""}`}
+                           <button
+                              onClick={resetSelection}
+                              style={{
+                                 background: "none",
+                                 border: "none",
+                                 cursor: "pointer",
+                                 padding: 0,
+                                 color: C.ruby,
+                                 display: "flex",
+                                 marginLeft: 2,
+                              }}>
+                              <FiX size={10} />
+                           </button>
+                        </motion.span>
+                     )}
+                  </AnimatePresence>
+                  <AnimatePresence>
+                     {groupBy && (
+                        <motion.span
+                           initial={{ opacity: 0, scale: 0.85 }}
+                           animate={{ opacity: 1, scale: 1 }}
+                           exit={{ opacity: 0, scale: 0.85 }}
+                           style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              background: C.blueLight,
+                              color: C.blue,
+                              borderRadius: 100,
+                              padding: "2px 10px",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                           }}>
+                           <FiLayout size={10} /> Agrupado
+                           <button
+                              onClick={() => setGroupBy(null)}
+                              style={{
+                                 background: "none",
+                                 border: "none",
+                                 cursor: "pointer",
+                                 padding: 0,
+                                 color: C.blue,
+                                 display: "flex",
+                                 marginLeft: 2,
+                              }}>
+                              <FiX size={10} />
+                           </button>
+                        </motion.span>
+                     )}
+                  </AnimatePresence>
+                  {sortConfig.field && (
                      <span
                         style={{
                            fontSize: 11,
-                           fontWeight: 700,
-                           color: C.text2,
-                           textTransform: "uppercase",
-                           letterSpacing: "0.07em",
+                           color: C.text3,
+                           display: "flex",
+                           alignItems: "center",
+                           gap: 4,
                         }}>
-                        Agrupar por:
+                        Orden:{" "}
+                        <strong style={{ color: C.text2 }}>
+                           {
+                              columns.find((c) => c.field === sortConfig.field)
+                                 ?.headerName
+                           }
+                        </strong>
+                        ({sortConfig.direction === "asc" ? "A→Z" : "Z→A"})
                      </span>
-                     {groupBy && (
-                        <button
-                           onClick={() => setGroupBy(null)}
+                  )}
+                  {activeCount > 0 && (
+                     <button
+                        onClick={clearAll}
+                        style={{
+                           display: "flex",
+                           alignItems: "center",
+                           gap: 5,
+                           padding: "4px 10px",
+                           borderRadius: C.r6,
+                           background: C.rubyLight,
+                           border: `1px solid rgba(155,34,66,0.2)`,
+                           color: C.ruby,
+                           fontSize: 11,
+                           fontWeight: 600,
+                           cursor: "pointer",
+                        }}>
+                        <FiX size={10} /> Limpiar ({activeCount})
+                     </button>
+                  )}
+               </div>
+               {renderColumnManager()}
+               {renderExportMenu()}
+               {renderFilterLibrary()}
+            </div>
+         )}
+
+         {/* ==================== MOBILE VIEW MODE SWITCHER ==================== */}
+         {isMobile && mobileConfig?.activeViews && (
+            <div
+               style={{
+                  borderBottom: `1px solid ${C.border}`,
+                  background: C.surface,
+                  overflowX: "auto",
+                  flexShrink: 0,
+                  scrollbarWidth: "none",
+               }}>
+               <div
+                  style={{
+                     display: "flex",
+                     gap: 6,
+                     padding: "8px 14px",
+                     whiteSpace: "nowrap",
+                  }}>
+                  {[].map((v) => (
+                     <button
+                        key={v.value}
+                        onClick={() => setMobileViewMode(v.value)}
+                        style={{
+                           display: "inline-flex",
+                           alignItems: "center",
+                           gap: 5,
+                           padding: "6px 12px",
+                           borderRadius: 100,
+                           border: `1.5px solid ${mobileViewMode === v.value ? C.ruby : C.borderMd}`,
+                           background:
+                              mobileViewMode === v.value ? C.ruby : C.white,
+                           color: mobileViewMode === v.value ? "#fff" : C.text2,
+                           fontSize: 12,
+                           fontWeight: 600,
+                           cursor: "pointer",
+                           transition: "all 0.15s",
+                           whiteSpace: "nowrap",
+                           fontFamily: "inherit",
+                        }}>
+                        {v.icon}
+                        {v.label}
+                     </button>
+                  ))}
+               </div>
+            </div>
+         )}
+
+         {/* ==================== DESKTOP GROUP PANEL ==================== */}
+         {!isMobile && (
+            <AnimatePresence>
+               {showGroupPanel && enableGroupBy && (
+                  <motion.div
+                     initial={{ height: 0, opacity: 0 }}
+                     animate={{ height: "auto", opacity: 1 }}
+                     exit={{ height: 0, opacity: 0 }}
+                     style={{
+                        overflow: "hidden",
+                        borderBottom: `1px solid ${C.border}`,
+                        background: C.pageBg,
+                     }}>
+                     <div
+                        style={{
+                           padding: "10px 20px",
+                           display: "flex",
+                           alignItems: "center",
+                           gap: 8,
+                           flexWrap: "wrap",
+                        }}>
+                        <span
                            style={{
-                              padding: "4px 12px",
-                              borderRadius: 100,
                               fontSize: 11,
                               fontWeight: 700,
-                              border: `1px solid ${C.ruby}`,
-                              cursor: "pointer",
-                              background: C.ruby,
-                              color: "#fff",
-                              transition: "all 0.15s",
+                              color: C.text2,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.07em",
                            }}>
-                           Quitar agrupación ×
-                        </button>
-                     )}
-                     {columns
-                        .filter((c) => c.groupable)
-                        .map((col) => (
-                           <button
-                              key={col.field}
-                              onClick={() =>
-                                 setGroupBy(
-                                    groupBy?.field === col.field
-                                       ? null
-                                       : { field: col.field, direction: "asc" },
-                                 )
-                              }
-                              style={
-                                 {
+                           Agrupar por:
+                        </span>
+                        {columns
+                           .filter((c) => c.groupable)
+                           .map((col) => (
+                              <button
+                                 key={col.field}
+                                 onClick={() =>
+                                    setGroupBy(
+                                       groupBy?.field === col.field
+                                          ? null
+                                          : {
+                                               field: col.field,
+                                               direction: "asc",
+                                            },
+                                    )
+                                 }
+                                 style={{
                                     padding: "4px 12px",
                                     borderRadius: 100,
                                     fontSize: 11,
@@ -3835,72 +5272,61 @@ const CustomTableInner = <T extends object>(
                                        groupBy?.field === col.field
                                           ? C.ruby
                                           : C.text2,
-                                    border2: `1px solid ${
-                                       groupBy?.field === col.field
-                                          ? "rgba(155,34,66,0.3)"
-                                          : C.border
-                                    }`,
                                     transition: "all 0.15s",
-                                 } as any
-                              }>
-                              {col.headerName}
-                              {col.field.includes(".") && (
-                                 <span
-                                    style={{
-                                       fontSize: 9,
-                                       opacity: 0.6,
-                                       marginLeft: 4,
-                                       fontFamily: "monospace",
-                                    }}>
-                                    ({col.field})
-                                 </span>
-                              )}
-                           </button>
-                        ))}
-                     {columns.filter((c) => c.groupable).length === 0 && (
-                        <span style={{ fontSize: 11, color: C.text3 }}>
-                           Marca columnas con{" "}
-                           <code
-                              style={{
-                                 background: C.surface,
-                                 padding: "1px 5px",
-                                 borderRadius: 3,
-                                 fontFamily: "monospace",
-                                 fontSize: 10,
-                              }}>
-                              groupable: true
-                           </code>{" "}
-                           para habilitarlas
-                        </span>
-                     )}
-                  </div>
-               </motion.div>
-            )}
-         </AnimatePresence>
+                                 }}>
+                                 {col.headerName}
+                              </button>
+                           ))}
+                        {columns.filter((c) => c.groupable).length === 0 && (
+                           <span style={{ fontSize: 11, color: C.text3 }}>
+                              Marca columnas con groupable: true para
+                              habilitarlas
+                           </span>
+                        )}
+                     </div>
+                  </motion.div>
+               )}
+            </AnimatePresence>
+         )}
 
          {renderStats()}
 
-         {/* BODY */}
+         {/* ==================== TABLE CONTENT ==================== */}
          <div
             style={{
-               overflowY: "auto",
+               overflow: "auto", // ← maneja X e Y en un solo contenedor
                flex: 1,
-               background: viewMode === "cards" ? C.pageBg : C.white,
+               background:
+                  !isMobile && viewMode === "cards" ? C.pageBg : C.white,
             }}>
-            {loading
-               ? renderLoading()
-               : error
-                 ? renderError()
-                 : currentRows.length === 0
-                   ? renderEmpty()
-                   : viewMode === "table"
-                     ? renderTable()
-                     : viewMode === "cards"
-                       ? renderCards()
-                       : renderCompact()}
+            {loading ? (
+               renderLoadingState()
+            ) : error ? (
+               renderErrorState()
+            ) : currentRows.length === 0 ? (
+               renderEmptyState()
+            ) : isMobile ? (
+               <>
+                  {mobileViewMode === "list" && renderMobileListView()}
+                  {mobileViewMode === "compact-list" &&
+                     renderMobileCompactListView()}
+                  {mobileViewMode === "cards" && renderMobileCardsView()}
+                  {mobileViewMode === "mini-cards" &&
+                     renderMobileMiniCardsView()}
+                  {mobileViewMode === "timeline" && renderMobileTimelineView()}
+                  {mobileViewMode === "detailed-list" &&
+                     renderMobileDetailedListView()}
+               </>
+            ) : viewMode === "table" ? (
+               renderDesktopTable()
+            ) : viewMode === "cards" ? (
+               renderDesktopCards()
+            ) : (
+               renderDesktopCompact()
+            )}
          </div>
 
-         {/* PAGINATION */}
+         {/* ==================== PAGINATION ==================== */}
          {currentRows.length > 0 && (
             <div
                style={{
@@ -3909,7 +5335,7 @@ const CustomTableInner = <T extends object>(
                   justifyContent: "space-between",
                   flexWrap: "wrap",
                   gap: 10,
-                  padding: "10px 18px",
+                  padding: isMobile ? "10px 14px" : "10px 18px",
                   borderTop: `1px solid ${C.border}`,
                   background: C.surface,
                   flexShrink: 0,
@@ -3934,7 +5360,6 @@ const CustomTableInner = <T extends object>(
                         padding: "4px 8px",
                         cursor: "pointer",
                         outline: "none",
-                        fontFamily: "inherit",
                      }}>
                      {paginate.map((n) => (
                         <option key={n} value={n}>
@@ -3943,7 +5368,6 @@ const CustomTableInner = <T extends object>(
                      ))}
                   </select>
                </div>
-
                <span style={{ fontSize: 11, color: C.text3, order: 3 }}>
                   <strong style={{ color: C.text1 }}>
                      {(startIndex + 1).toLocaleString()}–
@@ -3957,7 +5381,6 @@ const CustomTableInner = <T extends object>(
                      {totalRows.toLocaleString()}
                   </strong>
                </span>
-
                <div
                   style={{
                      display: "flex",
@@ -3977,27 +5400,39 @@ const CustomTableInner = <T extends object>(
                      C={C}>
                      <FiChevronLeft size={13} />
                   </PgBtn>
-                  {getPages().map((p, i) =>
-                     p === "…" ? (
-                        <span
-                           key={i}
-                           style={{
-                              width: 28,
-                              textAlign: "center",
-                              fontSize: 12,
-                              color: C.text3,
-                           }}>
-                           …
-                        </span>
-                     ) : (
-                        <PgBtn
-                           key={i}
-                           active={currentPage === p}
-                           onClick={() => setCurrentPage(p as number)}
-                           C={C}>
-                           {p}
-                        </PgBtn>
-                     ),
+                  {!isMobile &&
+                     getPages().map((p, i) =>
+                        p === "…" ? (
+                           <span
+                              key={i}
+                              style={{
+                                 width: 28,
+                                 textAlign: "center",
+                                 fontSize: 12,
+                                 color: C.text3,
+                              }}>
+                              …
+                           </span>
+                        ) : (
+                           <PgBtn
+                              key={i}
+                              active={currentPage === p}
+                              onClick={() => setCurrentPage(p as number)}
+                              C={C}>
+                              {p}
+                           </PgBtn>
+                        ),
+                     )}
+                  {isMobile && (
+                     <span
+                        style={{
+                           fontSize: 12,
+                           color: C.text2,
+                           fontWeight: 600,
+                           padding: "0 8px",
+                        }}>
+                        {currentPage} / {totalPages}
+                     </span>
                   )}
                   <PgBtn
                      onClick={() =>
@@ -4016,153 +5451,17 @@ const CustomTableInner = <T extends object>(
                </div>
             </div>
          )}
+
+         {/* ==================== MOBILE OVERLAYS ==================== */}
+         {renderFilterModalMobile()}
+         {renderBottomSheet()}
+         {renderMobileSettings()}
       </div>
    );
 };
 
-// ==================== forwardRef wrapper ====================
 const CustomTable = forwardRef(CustomTableInner) as <T extends object>(
    props: PropsTable<T> & { ref?: React.Ref<CustomTableHandle<T>> },
 ) => React.ReactElement;
 
 export default CustomTable;
-
-// ==================== AUXILIARY COMPONENTS ====================
-interface IconBtnProps {
-   children: React.ReactNode;
-   onClick: () => void;
-   title?: string;
-   active?: boolean;
-   C: ReturnType<typeof makeTokens>;
-}
-
-const IconBtn = ({
-   children,
-   onClick,
-   title,
-   active = false,
-   C,
-}: IconBtnProps) => (
-   <motion.button
-      whileTap={{ scale: 0.9 }}
-      onClick={onClick}
-      title={title}
-      style={{
-         width: 32,
-         height: 32,
-         display: "flex",
-         alignItems: "center",
-         justifyContent: "center",
-         borderRadius: C.r4,
-         border: `1px solid ${active ? C.ruby : C.border}`,
-         background: active ? C.rubyLight : C.surface,
-         cursor: "pointer",
-         color: active ? C.ruby : C.text2,
-         transition: "all 0.15s",
-         position: "relative",
-      }}>
-      {children}
-   </motion.button>
-);
-
-interface PgBtnProps {
-   children: React.ReactNode;
-   onClick: () => void;
-   disabled?: boolean;
-   active?: boolean;
-   C: ReturnType<typeof makeTokens>;
-}
-
-const PgBtn = ({
-   children,
-   onClick,
-   disabled = false,
-   active = false,
-   C,
-}: PgBtnProps) => (
-   <motion.button
-      whileTap={!disabled ? { scale: 0.9 } : {}}
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-         width: 28,
-         height: 28,
-         display: "flex",
-         alignItems: "center",
-         justifyContent: "center",
-         borderRadius: C.r4,
-         border: `1px solid ${active ? C.ruby : C.border}`,
-         background: active ? C.ruby : C.surface,
-         cursor: disabled ? "not-allowed" : "pointer",
-         fontSize: 12,
-         fontWeight: active ? 700 : 500,
-         color: active ? "#fff" : C.text2,
-         opacity: disabled ? 0.4 : 1,
-         boxShadow: active ? `0 2px 8px rgba(155,34,66,0.15)` : "none",
-         transition: "all 0.15s",
-         fontFamily: "inherit",
-      }}>
-      {children}
-   </motion.button>
-);
-
-interface ExportBtnProps {
-   icon: React.ReactNode;
-   label: string;
-   action: () => void;
-   color: string;
-   C: ReturnType<typeof makeTokens>;
-}
-
-const ExportBtn = ({ icon, label, action, color, C }: ExportBtnProps) => (
-   <button
-      onClick={action}
-      style={{
-         width: "100%",
-         display: "flex",
-         alignItems: "center",
-         gap: 8,
-         padding: "9px 12px",
-         borderRadius: C.r4,
-         border: "none",
-         background: "none",
-         cursor: "pointer",
-         color,
-         fontSize: 12,
-         fontWeight: 600,
-         fontFamily: "inherit",
-         transition: "background 0.1s",
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = C.hover)}
-      onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>
-      {icon} {label}
-   </button>
-);
-
-// ==================== USAGE EXAMPLE ====================
-/*
-
-// Deep field example:
-const columns: Column<User>[] = [
-  { field: "id",                   headerName: "ID" },
-  { field: "name",                 headerName: "Nombre", priority: 1 },
-  { field: "address.city",         headerName: "Ciudad", groupable: true },
-  { field: "address.country.name", headerName: "País", filterType: "select" },
-  { field: "meta.score",           headerName: "Score", aggregation: "avg" },
-  { field: "contact.email",        headerName: "Email" },
-];
-
-<CustomTable
-  data={users}
-  columns={columns}
-  paginate={[10, 25, 50]}
-  rowIdField="id"
-  enableRowSelection
-  enableSelectAllRows
-  enableGroupBy
-  enableExportOptions
-  conditionExcel="meta.active"        // only export rows where meta.active is truthy
-  title="Usuarios"
-/>
-
-*/

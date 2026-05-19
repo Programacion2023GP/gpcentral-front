@@ -216,6 +216,15 @@ export const departmentCrudConfig = ConfigCrud<
       subtitle: "Gestión de departamentos",
       icon: <icons.Hi.HiBuildingLibrary size={30} />,
    })
+
+   // .layout({
+   //    mode: "box",
+   //    sections: ["Información General", "Estado y Manager"],
+   //    fieldsPerSection: {
+   //       "Información General": ["uuid", "name"],
+   //       "Estado y Manager": ["active", "organization_id"],
+   //    },
+   // })
    .tableActions({
       isEditing: true,
       isDelete: true,
@@ -236,6 +245,40 @@ export const departmentCrudConfig = ConfigCrud<
             permission: true,
          },
       ],
+   })
+   .mobile({
+      enabled: true,
+      activeViews: true,
+      listTile: {
+         title: (row) => row.name,
+         subtitle: (row) => `${row.code} | ${row.organization || "Sin org"}`,
+         leading: (row) => (
+            <div className="w-10 h-10 rounded-full bg-[#9B2242] text-white flex items-center justify-center font-bold">
+               {row.name?.charAt(0)?.toUpperCase() || "D"}
+            </div>
+         ),
+         trailing: (row) => (
+            <span
+               className={`w-2.5 h-2.5 rounded-full ${row.active ? "bg-green-500" : "bg-gray-400"}`}
+            />
+         ),
+      },
+      quickFilters: {
+         enabled: true,
+         filters: [
+            { dataField: "name", label: "Nombre", type: "text" },
+            { dataField: "code", label: "Código", type: "text" },
+            {
+               dataField: "active",
+               label: "Estado",
+               type: "select",
+               options: [
+                  { label: "Activo", value: "true" },
+                  { label: "Inactivo", value: "false" },
+               ],
+            },
+         ],
+      },
    })
    // .override({
    //   text: ({ label, value, onChange, error, placeholder }) => (

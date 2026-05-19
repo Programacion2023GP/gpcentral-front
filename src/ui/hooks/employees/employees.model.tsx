@@ -1,7 +1,7 @@
 // config/employees.crud.ts
 import { env } from "../../../constant";
 import { ConfigCrud } from "../../../models/genericmodels.model";
-import { formatDatetime } from "../../../utils/helpers";
+import { formatDatetime, formatPhone } from "../../../utils/helpers";
 import PhotoZoom from "../../components/images/images";
 import icons from "./../../../constant/icons";
 
@@ -20,7 +20,7 @@ export interface EmployeeForm {
    full_name_reverse: string | null;
    rfc: string | null;
    curp: string | null;
-   gender: "M" | "F";
+   gender: "M" | "F" | null;
    phone: string | null;
    avatar: string | null;
    signature_image: string | null;
@@ -44,7 +44,6 @@ export interface EmployeeForm {
 // 2. Interfaz para la tabla (datos enriquecidos)
 export interface EmployeeTableRow extends EmployeeForm {
    employee_active: boolean;
-
    position_name: string | null;
    department_name: string | null;
    organization_id: number | null;
@@ -77,7 +76,7 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
          "created_at",
       ],
       select: ["position_uuid"],
-      checkbox: ["gender"],
+      radio: ["gender"],
       // toggle: ["active"],
       file: ["avatar", "signature_image"],
    })
@@ -114,15 +113,24 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
          validation: ({ yup }) =>
             yup.string().required("Número celular requerido"),
       },
+      hire_date: {
+         label: "Fecha de ingreso",
+         placeholder: "DD/MM/AAAA",
+         type: "date",
+         validation: ({ yup }) =>
+            yup.string().required("Fecha de ingreso Requerido"),
+      },
       start_date: {
          label: "Fecha Inicial",
          placeholder: "DD/MM/AAAA",
+         type: "datetime",
          validation: ({ yup }) =>
             yup.string().required("Fecha Inicial Requerido"),
       },
       end_date: {
          label: "Fecha Final",
          placeholder: "DD/MM/AAAA",
+         type: "datetime",
          validation: ({ yup }) =>
             yup.string().required("Fecha Final Requerido"),
       },
@@ -134,6 +142,17 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
          keyLabel: "name",
          options: [],
          validation: ({ yup }) => yup.string().required("Puesto requerido"),
+      },
+   })
+   .radio({
+      gender: {
+         label: "Genero",
+         optionIdKey: "id",
+         optionLabelKey: "label",
+         options: [
+            { id: "M", label: "Masculino" },
+            { id: "F", label: "Femenino" },
+         ],
       },
    })
    .file({
@@ -242,14 +261,14 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
             <a
                href={`tel:${value}`}
                className="text-blue-600 hover:text-blue-700">
-               {value}
+               {formatPhone(value)}
             </a>
          ),
       },
       gender: {
          label: "Género",
          render: (value, _row) =>
-            `${value === "M" ? `${(<icons.Pi.PiGenderMale />)} Masculino` : `${(<icons.Pi.PiGenderMale />)} Femenino`}`,
+            `${value === "M" ? `Masculino` : value === "F" ? `Femenino` : "Sin asignar"}`,
       },
       position_name: {
          label: "Puesto",
@@ -294,8 +313,7 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
                   label: "Pendiente",
                },
             };
-            const config =
-               statusConfig[value?.toLowerCase()] || statusConfig.false;
+            const config = statusConfig[value] || statusConfig.false;
             return (
                <span
                   className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}>
@@ -305,6 +323,41 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
                </span>
             );
          },
+      },
+   })
+   .mobile({
+      enabled: true,
+      activeViews: true,
+      listTile: {
+         title: (row) => row.name,
+         subtitle: (row) =>
+            `${row.employe_code} | ${row.position_name || "Sin org"}`,
+         leading: (row) => (
+            <div className="w-10 h-10 rounded-full bg-[#9B2242] text-white flex items-center justify-center font-bold">
+               {row.name?.charAt(0)?.toUpperCase() || "D"}
+            </div>
+         ),
+         trailing: (row) => (
+            <span
+               className={`w-2.5 h-2.5 rounded-full ${row.active ? "bg-green-500" : "bg-gray-400"}`}
+            />
+         ),
+      },
+      quickFilters: {
+         enabled: true,
+         filters: [
+            { dataField: "name", label: "Nombre", type: "text" },
+            { dataField: "employe_code", label: "Código", type: "text" },
+            {
+               dataField: "active",
+               label: "Estado",
+               type: "select",
+               options: [
+                  { label: "Activo", value: "true" },
+                  { label: "Inactivo", value: "false" },
+               ],
+            },
+         ],
       },
    })
    // .override({

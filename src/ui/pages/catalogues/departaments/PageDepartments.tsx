@@ -1,10 +1,10 @@
 import SuperCrud from "../../../components/compositecustoms/compositeCrud";
-import { employeeCrudConfig } from "../../../hooks/employees/employees.model";
+import { departmentCrudConfig } from "../../../hooks/departaments/departaments.model";
 import useDepartamentsData from "../../../hooks/departaments/useDepartamentsData";
 import useOrganizationsData from "../../../hooks/organization/useOrganizationsData";
 
 const PageDepartments = ({}) => {
-   const contextOrganizations = useOrganizationsData();
+   // const contextOrganizations = useOrganizationsData();
    return (
       <>
          <SuperCrud
@@ -13,7 +13,7 @@ const PageDepartments = ({}) => {
                modalTitleUpdate: "Editar Departamento",
             }}
             hook={useDepartamentsData()}
-            crudConfig={employeeCrudConfig}
+            crudConfig={departmentCrudConfig}
          />
       </>
    );

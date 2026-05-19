@@ -24,7 +24,7 @@ const CompositePage: React.FC<PropsCompositePage> = ({
    isOpen,
    onClose,
    modalTitle,
-   fullModal = true
+   fullModal = true,
 }) => {
    const [isExpanded, setIsExpanded] = useState(true);
    const [isClosing, setIsClosing] = useState(false);
@@ -58,15 +58,14 @@ const CompositePage: React.FC<PropsCompositePage> = ({
                   e.stopPropagation();
                   handleClose();
                }}
-               className="fixed top-6 right-4 z-50 w-14 h-14 flex items-center justify-center bg-white rounded-full shadow-xl border-2 border-gray-300 active:bg-gray-50 active:scale-95 transition-transform"
+               className="fixed z-50 flex items-center justify-center transition-transform bg-white border-2 border-gray-300 rounded-full shadow-xl top-6 right-4 w-14 h-14 active:bg-gray-50 active:scale-95"
                style={{
                   WebkitTapHighlightColor: "transparent",
                   cursor: "pointer",
                   touchAction: "manipulation",
-                  pointerEvents: "auto"
+                  pointerEvents: "auto",
                }}
-               aria-label="Cerrar modal"
-            >
+               aria-label="Cerrar modal">
                <AiOutlineClose size={24} className="text-gray-800" />
             </button>
          );
@@ -80,8 +79,7 @@ const CompositePage: React.FC<PropsCompositePage> = ({
                handleClose();
             }}
             className="p-2 text-gray-500 transition-colors rounded-lg hover:text-red-600 hover:bg-red-50"
-            title="Cerrar"
-         >
+            title="Cerrar">
             <AiOutlineClose size={18} />
          </button>
       );
@@ -122,7 +120,7 @@ const CompositePage: React.FC<PropsCompositePage> = ({
 
                      {/* Modal móvil - SIN DRAG en el contenedor principal */}
                      <motion.div
-                        className="absolute bottom-0 left-0 right-0 bg-white shadow-2xl rounded-t-3xl z-40"
+                        className="absolute bottom-0 left-0 right-0 z-40 bg-white shadow-2xl rounded-t-3xl"
                         initial={{ y: "100%" }}
                         animate={{ y: 0 }}
                         exit={{ y: "100%" }}
@@ -130,14 +128,13 @@ const CompositePage: React.FC<PropsCompositePage> = ({
                            type: "spring",
                            damping: 25,
                            stiffness: 300,
-                           mass: 0.8
+                           mass: 0.8,
                         }}
                         style={{
                            height: "100vh",
                            maxHeight: "100vh",
-                           paddingTop: "env(safe-area-inset-top, 0px)"
-                        }}
-                     >
+                           paddingTop: "env(safe-area-inset-top, 0px)",
+                        }}>
                         {/* Handle para arrastrar - SOLO ESTE DIV es draggable */}
                         <motion.div
                            className="flex justify-center pt-6 pb-2 cursor-grab active:cursor-grabbing"
@@ -145,22 +142,26 @@ const CompositePage: React.FC<PropsCompositePage> = ({
                            dragConstraints={{ top: 0, bottom: 0 }}
                            dragElastic={0.2}
                            onDragEnd={(event, info) => {
-                              if (info.offset.y > 100 || info.velocity.y > 500) {
+                              if (
+                                 info.offset.y > 100 ||
+                                 info.velocity.y > 500
+                              ) {
                                  handleClose();
                               }
                            }}
                            style={{
                               touchAction: "pan-y",
                               WebkitUserSelect: "none",
-                              userSelect: "none"
-                           }}
-                        >
+                              userSelect: "none",
+                           }}>
                            <div className="w-24 h-1.5 bg-gray-300 rounded-full" />
                         </motion.div>
-                        
+
                         {/* Header móvil */}
-                        <div className="px-6 pt-2 pb-4 bg-white border-b border-gray-200">
-                           <h2 className="text-xl font-bold text-gray-900 truncate pr-16 mt-2">{modalTitle || ""}</h2>
+                        <div className="px-6 pb-4 bg-white border-b border-gray-200">
+                           <h2 className="pr-16 mt-2 text-xl font-bold text-gray-900 truncate">
+                              {modalTitle || ""}
+                           </h2>
                         </div>
                         {/* Contenido scrollable con safe areas para iOS */}
                         <div
@@ -168,9 +169,9 @@ const CompositePage: React.FC<PropsCompositePage> = ({
                            style={{
                               height: getContentHeight(),
                               WebkitOverflowScrolling: "touch",
-                              paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))"
-                           }}
-                        >
+                              paddingBottom:
+                                 "calc(20px + env(safe-area-inset-bottom, 0px))",
+                           }}>
                            <div className="px-6 py-4 pb-8">{content()}</div>
                         </div>
                      </motion.div>
@@ -197,7 +198,11 @@ const CompositePage: React.FC<PropsCompositePage> = ({
                   {/* Modal para tablet/desktop */}
                   <motion.div
                      className={`absolute bottom-0 overflow-hidden bg-white shadow-2xl ${
-                        isTablet ? "rounded-t-3xl left-0 right-0" : isExpanded ? "rounded-none inset-0" : "rounded-none inset-0"
+                        isTablet
+                           ? "rounded-t-3xl left-0 right-0"
+                           : isExpanded
+                             ? "rounded-none inset-0"
+                             : "rounded-none inset-0"
                      }`}
                      initial={{ y: "100%" }}
                      animate={{ y: 0 }}
@@ -206,16 +211,27 @@ const CompositePage: React.FC<PropsCompositePage> = ({
                         type: "spring",
                         damping: 25,
                         stiffness: 300,
-                        mass: 0.8
+                        mass: 0.8,
                      }}
                      style={{
-                        height: isTablet ? "90vh" : isExpanded ? "100vh" : "100vh",
-                        maxWidth: isTablet ? "100%" : isExpanded ? "100%" : "100%",
+                        height: isTablet
+                           ? "90vh"
+                           : isExpanded
+                             ? "100vh"
+                             : "100vh",
+                        maxWidth: isTablet
+                           ? "100%"
+                           : isExpanded
+                             ? "100%"
+                             : "100%",
                         left: isTablet ? 0 : isExpanded ? 0 : 0,
                         right: isTablet ? 0 : isExpanded ? 0 : 0,
-                        transform: isTablet ? "none" : isExpanded ? "none" : "none"
-                     }}
-                  >
+                        transform: isTablet
+                           ? "none"
+                           : isExpanded
+                             ? "none"
+                             : "none",
+                     }}>
                      {/* Handle para arrastrar - SOLO DRAG AQUÍ */}
                      <motion.div
                         className="flex justify-center pt-3 pb-3 cursor-grab active:cursor-grabbing"
@@ -226,23 +242,26 @@ const CompositePage: React.FC<PropsCompositePage> = ({
                            if (info.offset.y > 150 || info.velocity.y > 600) {
                               handleClose();
                            }
-                        }}
-                     >
+                        }}>
                         <div className="w-20 h-1.5 bg-gray-300 rounded-full transition-colors hover:bg-gray-400" />
                      </motion.div>
 
                      {/* Header */}
                      <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
-                        <h2 className="text-xl font-bold text-gray-900 truncate">{modalTitle || ""}</h2>
+                        <h2 className="text-xl font-bold text-gray-900 truncate">
+                           {modalTitle || ""}
+                        </h2>
 
                         <div className="flex items-center gap-2">
                            {!isMobile && (
                               <button
                                  onClick={toggleExpand}
                                  className="p-2 text-gray-500 transition-colors rounded-lg hover:text-blue-600 hover:bg-blue-50"
-                                 title={isExpanded ? "Contraer" : "Expandir"}
-                              >
-                                 <AiOutlineExpandAlt size={18} className={`transition-transform duration-200 ${isExpanded ? "rotate-180" : "rotate-180"}`} />
+                                 title={isExpanded ? "Contraer" : "Expandir"}>
+                                 <AiOutlineExpandAlt
+                                    size={18}
+                                    className={`transition-transform duration-200 ${isExpanded ? "rotate-180" : "rotate-180"}`}
+                                 />
                               </button>
                            )}
                            <CloseButton />
@@ -250,7 +269,9 @@ const CompositePage: React.FC<PropsCompositePage> = ({
                      </div>
 
                      {/* Contenido */}
-                     <div className="overflow-y-auto" style={{ height: getContentHeight() }}>
+                     <div
+                        className="overflow-y-auto"
+                        style={{ height: getContentHeight() }}>
                         <div className="p-6">{content()}</div>
                      </div>
                   </motion.div>
@@ -262,7 +283,9 @@ const CompositePage: React.FC<PropsCompositePage> = ({
 
    // El resto del componente sin cambios...
    const bothVisible =
-      (tableDirection === "izq" || tableDirection === "der") && (formDirection === "izq" || formDirection === "der") && tableDirection !== formDirection;
+      (tableDirection === "izq" || tableDirection === "der") &&
+      (formDirection === "izq" || formDirection === "der") &&
+      tableDirection !== formDirection;
 
    const getLeftWidth = () => {
       if (!bothVisible) return "w-full";
@@ -277,10 +300,12 @@ const CompositePage: React.FC<PropsCompositePage> = ({
    return (
       <>
          {/* Layout principal */}
-         <div className={`flex flex-col ${bothVisible ? "lg:flex-row" : ""} gap-3 sm:gap-4 w-full`}>
+         <div
+            className={`flex flex-col ${bothVisible ? "lg:flex-row" : ""} gap-3 sm:gap-4 w-full`}>
             {/* SECCIÓN IZQUIERDA */}
             {(tableDirection === "izq" || formDirection === "izq") && (
-               <div className={`${getLeftWidth()} min-w-0 transition-all duration-300`}>
+               <div
+                  className={`${getLeftWidth()} min-w-0 transition-all duration-300`}>
                   <div className="overflow-hidden bg-white rounded-lg shadow-sm">
                      {tableDirection === "izq" && table && table()}
                      {formDirection === "izq" && form && form()}
@@ -290,7 +315,8 @@ const CompositePage: React.FC<PropsCompositePage> = ({
 
             {/* SECCIÓN DERECHA */}
             {(tableDirection === "der" || formDirection === "der") && (
-               <div className={`${getRightWidth()} min-w-0 transition-all duration-300`}>
+               <div
+                  className={`${getRightWidth()} min-w-0 transition-all duration-300`}>
                   <div className="overflow-hidden bg-white rounded-lg shadow-sm">
                      {formDirection === "der" && form && form()}
                      {tableDirection === "der" && table && table()}

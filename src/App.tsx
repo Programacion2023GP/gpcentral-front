@@ -35,7 +35,8 @@ import PageEmployees from "./ui/pages/catalogues/employees/PageEmployees";
 // Lazy imports para todas las páginas
 const PageDepartaments = lazy(
    () => import("./ui/pages/catalogues/departaments/PageDepartments"),
-);
+);import icons from './constant/icons';
+
 
 configureGeneric({
    baseUrl: "http://127.0.0.1:8000/api",
@@ -170,8 +171,15 @@ const MainLayout = () => {
                   71,
                   "catalogo_departamentos_",
                   "/catalogos/departamentos",
-                  <FaUserDoctor />,
+                  <icons.Hi.HiBuildingLibrary />,
                   "Departamentos",
+               ),
+                createRouteItem(
+                  72,
+                  "catalogo_empleados_",
+                  "/catalogos/empleados",
+                  <icons.Hi.HiUser />,
+                  "Empleados",
                ),
             ],
          ),
