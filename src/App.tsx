@@ -30,6 +30,7 @@ import { RiFileList3Line } from "react-icons/ri";
 import { configureGeneric } from "react-zustore";
 import { env } from "./constant";
 import type { UserTableRow } from "./ui/hooks/users/users.model";
+import PageEmployees from "./ui/pages/catalogues/employees/PageEmployees";
 
 // Lazy imports para todas las páginas
 const PageDepartaments = lazy(
@@ -335,6 +336,14 @@ function App() {
                   element={
                      <Suspense fallback={<Spinner />}>
                         <PageDepartaments />
+                     </Suspense>
+                  }
+               />
+               <Route
+                  path="empleados"
+                  element={
+                     <Suspense fallback={<Spinner />}>
+                        <PageEmployees />
                      </Suspense>
                   }
                />

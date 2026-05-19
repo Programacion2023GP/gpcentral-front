@@ -1,22 +1,35 @@
-// config/users.crud.ts
+// config/employees.crud.ts
 import { env } from "../../../constant";
 import { ConfigCrud } from "../../../models/genericmodels.model";
 import { formatDatetime } from "../../../utils/helpers";
 import PhotoZoom from "../../components/images/images";
-import useOrganizationsData from "../organization/useOrganizationsData";
 import icons from "./../../../constant/icons";
 
 // 1. Interfaz del formulario (lo que se guarda en BD)
-export interface DepartmentForm {
+export interface EmployeeForm {
    id: number;
-   uuid: string;
-   organization_id: number | null;
-   code: string | null;
-   name: string | null;
-   seal_image: string | null;
-   start_date: Date | null;
-   end_date: Date | null;
+   employe_code: number | null;
+   hire_date: string;
+   email: string | null;
    active: boolean;
+
+   name: string | null;
+   plast_name: string | null;
+   mlast_name: string | null;
+   full_name: string | null;
+   full_name_reverse: string | null;
+   rfc: string | null;
+   curp: string | null;
+   gender: "M" | "F";
+   phone: string | null;
+   avatar: string | null;
+   signature_image: string | null;
+   start_date: Date | string | null;
+   end_date: Date | string | null;
+
+   position_uuid: string | null;
+
+   department_uuid: string | null;
 
    //  metadata: {
    //     department_id?: number;
@@ -29,105 +42,183 @@ export interface DepartmentForm {
 }
 
 // 2. Interfaz para la tabla (datos enriquecidos)
-export interface DepartmentTableRow extends DepartmentForm {
-   organization: string;
+export interface EmployeeTableRow extends EmployeeForm {
+   employee_active: boolean;
+
+   position_name: string | null;
+   department_name: string | null;
+   organization_id: number | null;
+   organization_name: string | null;
+   administration_id: number | null;
+   administration_name: string | null;
+   president_name: string | null;
+   administration_logo: string | null;
+   user_id: string;
+   username: string;
+   email: string;
+   password?: string;
 }
 
 // 3. Configuración CORREGIDA
-export const departmentCrudConfig = ConfigCrud<
-   DepartmentForm,
-   DepartmentTableRow
->()
+export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
    .fields({
-      text: ["uuid", "code", "name", "start_date", "end_date"],
-      select: ["organization_id"],
-      file: ["seal_image"],
-      toggle: ["active"],
+      text: [
+         "employe_code",
+         "hire_date", //fecha de contratación
+         // "emplooye_id",
+         "name",
+         "plast_name",
+         "mlast_name",
+         "rfc",
+         "curp",
+         "phone",
+         "start_date",
+         "end_date",
+         "created_at",
+      ],
+      select: ["position_uuid"],
+      checkbox: ["gender"],
+      // toggle: ["active"],
+      file: ["avatar", "signature_image"],
    })
    .text({
-      uuid: {
-         label: "UUID",
-         placeholder: "9X9999XX9X9XX9",
-         disabled: true,
+      name: {
+         label: "Nombre",
+         placeholder: "Escribe tu nombre o nombres",
+         validation: ({ yup }) => yup.string().required("Nombre requerido"),
+      },
+      plast_name: {
+         label: "Apellido Paterno",
+         placeholder: "Escribe tu primer apellido",
+         validation: ({ yup }) =>
+            yup.string().required("Apellido Paterno requerido"),
+      },
+      mlast_name: {
+         label: "Apellido Materno",
+         placeholder: "Escribe tu segundo apellido",
          validation: ({ yup }) => yup.string().notRequired(),
       },
-      code: {
-         label: "Código",
-         placeholder: "AD",
-         validation: ({ yup }) => yup.string().required("Código Requerido"),
+      rfc: {
+         label: "RFC",
+         placeholder: "Escribe tu rfc",
+         validation: ({ yup }) => yup.string().required("RFC requerido"),
       },
-      name: {
-         label: "Departamento",
-         placeholder: "Nombre del departamento",
+      curp: {
+         label: "CURP",
+         placeholder: "Escribe tu curp",
+         validation: ({ yup }) => yup.string().required("CURP requerido"),
+      },
+      phone: {
+         label: "Número celular",
+         placeholder: "Escribe tu celular a 10 digitos",
          validation: ({ yup }) =>
-            yup.string().required("Departamento requerido"),
+            yup.string().required("Número celular requerido"),
       },
       start_date: {
          label: "Fecha Inicial",
          placeholder: "DD/MM/AAAA",
-         type: "date",
-
          validation: ({ yup }) =>
             yup.string().required("Fecha Inicial Requerido"),
       },
       end_date: {
          label: "Fecha Final",
          placeholder: "DD/MM/AAAA",
-         type: "date",
-
-         validation: ({ yup }) => yup.string().notRequired(),
+         validation: ({ yup }) =>
+            yup.string().required("Fecha Final Requerido"),
       },
    })
    .select({
-      organization_id: {
-         label: "Organización",
-         keyId: "id",
+      position_uuid: {
+         label: "Puesto",
+         keyId: "uuid",
          keyLabel: "name",
-         // options: [],
-         selectOptionsHook: () => useOrganizationsData().items,
-         validation: ({ yup }) => yup.string().required("Rol requerido"),
+         options: [],
+         validation: ({ yup }) => yup.string().required("Puesto requerido"),
       },
    })
    .file({
-      seal_image: {
-         label: "Sello",
+      avatar: {
+         label: "Imagen del trabajador",
+         showPreviews: true,
+      },
+      signature_image: {
+         label: "Firma",
          showPreviews: true,
       },
    })
    .toggle({
       active: {
-         label: "Departamento Activo",
+         label: "Empleado Activo",
       },
    })
-   // .layout({
-   //    mode: "box",
-   //    sections: ["Información General", "Estado y Manager"],
-   //    fieldsPerSection: {
-   //       "Información General": ["uuid", "name"],
-   //       "Estado y Manager": ["active", "organization_id"],
-   //    },
-   // })
+   .layout({
+      mode: "box",
+      sections: ["Información Personal", "Información de Empleado"],
+      fieldsPerSection: {
+         "Información Personal": [
+            "avatar",
+            "name",
+            "plast_name",
+            "mlast_name",
+            "rfc",
+            "curp",
+            "gender",
+            "phone",
+            "start_date",
+            "end_date",
+            "signature_image",
+         ],
+         "Información de Empleado": [
+            "employe_code",
+            "hire_date",
+            "position_uuid",
+         ],
+      },
+   })
+   .tableHeader({
+      title: "Empleados",
+      subtitle: "Gestión de empleados",
+      icon: <icons.Hi.HiUserGroup size={30} />,
+   })
+   .tableActions({
+      isEditing: true,
+      isDelete: true,
+      moreButtons: [
+         {
+            label: "Ver perfil",
+            icon: <icons.Hi.HiUser />,
+
+            handleOnClick: (row) => console.log(row),
+            color: "blue",
+            permission: true,
+         },
+         {
+            label: "Ver perfil",
+            icon: <icons.Pi.PiAcorn />,
+            handleOnClick: (row) => console.log(row),
+            color: "red",
+            permission: true,
+         },
+      ],
+   })
    .tableColumns({
-      seal_image: {
-         label: "Sello",
-         render: (value, row) => (
-            <div className="flex items-center justify-center gap-2">
+      avatar: {
+         label: "Avatar",
+         render: (value, _row) => (
+            <div className="flex items-center gap-2">
                <div className="flex items-center justify-center w-8 h-8 text-sm font-semibold text-white rounded-full bg-gradient-to-br from-blue-500 to-indigo-600">
                   <PhotoZoom
                      src={value}
-                     alt="Sello"
-                     title="Sello del departamento"
+                     alt="Avatar"
+                     title="Imagen del empleado"
                   />
                </div>
                <span className="font-medium text-gray-900">{value}</span>
             </div>
          ),
       },
-      uuid: {
-         label: "UUID",
-      },
-      code: {
-         label: "Codigo",
+      employe_code: {
+         label: "Número de nomina",
          render: (value) => (
             <a
                href={`mailto:${value}`}
@@ -136,36 +227,40 @@ export const departmentCrudConfig = ConfigCrud<
             </a>
          ),
       },
-      name: {
-         label: "Departamento",
-         render: (value, _row) => `${value}`,
+      full_name: {
+         label: "Nombre completo",
       },
-      organization: {
-         label: "Rol",
-         render: (value) => {
-            const colors: Record<string, string> = {
-               PRESIDENCIA: "bg-primary-100 text-primary-800",
-               SIDEAPA: "bg-blue-100 text-blue-800",
-               SIDEAPAAR: "bg-gray-100 text-gray-800",
-               DIF: "bg-purple-100 text-purple-800",
-            };
-            return (
-               <span
-                  className={`px-2 py-1 rounded-full text-xs font-semibold ${colors[value?.toUpperCase()] || "bg-gray-100 text-gray-800"}`}>
-                  {value}
-               </span>
-            );
-         },
+      rfc: {
+         label: "RFC",
+      },
+      curp: {
+         label: "CURP",
+      },
+      phone: {
+         label: "Número celular",
+         render: (value) => (
+            <a
+               href={`tel:${value}`}
+               className="text-blue-600 hover:text-blue-700">
+               {value}
+            </a>
+         ),
+      },
+      gender: {
+         label: "Género",
+         render: (value, _row) =>
+            `${value === "M" ? `${(<icons.Pi.PiGenderMale />)} Masculino` : `${(<icons.Pi.PiGenderMale />)} Femenino`}`,
+      },
+      position_name: {
+         label: "Puesto",
       },
       start_date: {
          label: "Fecha Inicio",
-         render: (value, _row) => `${formatDatetime(value, false)}`,
-         getFilterValue: (value) => `${formatDatetime(value, false)}`,
+         render: (value, _row) => `${formatDatetime(value, true)}`,
       },
       end_date: {
          label: "Fecha Fin",
-         render: (value, _row) => `${formatDatetime(value, false)}`,
-         getFilterValue: (value) => `${formatDatetime(value, false)}`,
+         render: (value, _row) => `${formatDatetime(value, true)}`,
       },
       active: {
          label: "Estado",
@@ -199,7 +294,8 @@ export const departmentCrudConfig = ConfigCrud<
                   label: "Pendiente",
                },
             };
-            const config = statusConfig[value] || statusConfig.false;
+            const config =
+               statusConfig[value?.toLowerCase()] || statusConfig.false;
             return (
                <span
                   className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}>
@@ -210,32 +306,6 @@ export const departmentCrudConfig = ConfigCrud<
             );
          },
       },
-   })
-   .tableHeader({
-      title: "Departamentos",
-      subtitle: "Gestión de departamentos",
-      icon: <icons.Hi.HiBuildingLibrary size={30} />,
-   })
-   .tableActions({
-      isEditing: true,
-      isDelete: true,
-      moreButtons: [
-         {
-            label: "Ver perfil",
-            icon: <icons.Hi.HiUser />,
-
-            handleOnClick: (row) => console.log(row),
-            color: "blue",
-            permission: true,
-         },
-         {
-            label: "Ver perfil",
-            icon: <icons.Pi.PiAcorn />,
-            handleOnClick: (row) => console.log(row),
-            color: "red",
-            permission: true,
-         },
-      ],
    })
    // .override({
    //   text: ({ label, value, onChange, error, placeholder }) => (
@@ -443,7 +513,7 @@ export const departmentCrudConfig = ConfigCrud<
    //               <Formik >
    //                 {({ values, errors, isSubmitting, handleSubmit }) => (
    //                   <form onSubmit={handleSubmit}>
-   //                     <overrides.text name="username" />
+   //                     <overrides.text name="name" />
    //                     <overrides.text name="email" />
    //                     <div className="grid grid-cols-2 gap-3">
    //                       <overrides.text name="first_name" />
