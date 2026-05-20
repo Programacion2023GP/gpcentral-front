@@ -3,7 +3,7 @@ import { env } from "../../../constant";
 import { ConfigCrud } from "../../../models/genericmodels.model";
 import { formatDatetime } from "../../../utils/helpers";
 import PhotoZoom from "../../components/images/images";
-import useOrganizationsData from "../organization/useOrganizationsData";
+import useOrganizationsData from "../organizations/useOrganizationsData";
 import icons from "./../../../constant/icons";
 
 // 1. Interfaz del formulario (lo que se guarda en BD)
@@ -49,16 +49,25 @@ export const departmentCrudConfig = ConfigCrud<
          label: "UUID",
          placeholder: "9X9999XX9X9XX9",
          disabled: true,
+         responsive: {
+            md: 4,
+         },
          validation: ({ yup }) => yup.string().notRequired(),
       },
       code: {
          label: "Código",
-         placeholder: "AD",
+         placeholder: "",
+         responsive: {
+            md: 4,
+         },
          validation: ({ yup }) => yup.string().required("Código Requerido"),
       },
       name: {
          label: "Departamento",
          placeholder: "Nombre del departamento",
+         responsive: {
+            md: 4,
+         },
          validation: ({ yup }) =>
             yup.string().required("Departamento requerido"),
       },
@@ -66,7 +75,9 @@ export const departmentCrudConfig = ConfigCrud<
          label: "Fecha Inicial",
          placeholder: "DD/MM/AAAA",
          type: "date",
-
+         responsive: {
+            md: 4,
+         },
          validation: ({ yup }) =>
             yup.string().required("Fecha Inicial Requerido"),
       },
@@ -74,7 +85,9 @@ export const departmentCrudConfig = ConfigCrud<
          label: "Fecha Final",
          placeholder: "DD/MM/AAAA",
          type: "date",
-
+         responsive: {
+            md: 4,
+         },
          validation: ({ yup }) => yup.string().notRequired(),
       },
    })
@@ -85,6 +98,9 @@ export const departmentCrudConfig = ConfigCrud<
          keyLabel: "name",
          // options: [],
          selectOptionsHook: () => useOrganizationsData().items,
+         responsive: {
+            md: 4,
+         },
          validation: ({ yup }) => yup.string().required("Rol requerido"),
       },
    })
@@ -92,11 +108,17 @@ export const departmentCrudConfig = ConfigCrud<
       seal_image: {
          label: "Sello",
          showPreviews: true,
+         responsive: {
+            md: 6,
+         },
       },
    })
    .toggle({
       active: {
          label: "Departamento Activo",
+         responsive: {
+            md: 6,
+         },
       },
    })
    // .layout({
@@ -119,7 +141,7 @@ export const departmentCrudConfig = ConfigCrud<
                      title="Sello del departamento"
                   />
                </div>
-               <span className="font-medium text-gray-900">{value}</span>
+               {/* <span className="font-medium text-gray-900">{value}</span> */}
             </div>
          ),
       },
@@ -216,7 +238,6 @@ export const departmentCrudConfig = ConfigCrud<
       subtitle: "Gestión de departamentos",
       icon: <icons.Hi.HiBuildingLibrary size={30} />,
    })
-
    // .layout({
    //    mode: "box",
    //    sections: ["Información General", "Estado y Manager"],

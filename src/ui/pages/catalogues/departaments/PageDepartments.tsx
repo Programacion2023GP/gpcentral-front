@@ -1,7 +1,6 @@
 import SuperCrud from "../../../components/compositecustoms/compositeCrud";
 import { departmentCrudConfig } from "../../../hooks/departaments/departaments.model";
-import useDepartamentsData from "../../../hooks/departaments/useDepartamentsData";
-import useOrganizationsData from "../../../hooks/organization/useOrganizationsData";
+import useDepartmentsData from "../../../hooks/departaments/useDepartamentsData";
 
 const PageDepartments = ({}) => {
    // const contextOrganizations = useOrganizationsData();
@@ -12,7 +11,7 @@ const PageDepartments = ({}) => {
                modalTitleAdd: "Agregar Departamento",
                modalTitleUpdate: "Editar Departamento",
             }}
-            hook={useDepartamentsData()}
+            hook={useDepartmentsData()}
             crudConfig={departmentCrudConfig}
          />
       </>

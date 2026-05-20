@@ -44,12 +44,25 @@ const DS = {
 };
 
 /* ------------------------------------------------------------------
-   TIPOS
+   TIPOS COMPARTIDOS
 ------------------------------------------------------------------ */
 export type HandleModifiedFn = (
    values: Record<string, any>,
    setFieldValue: (name: string, value: any) => void,
 ) => void | Promise<void>;
+
+/**
+ * Cómo transformar el case del valor al escribir.
+ * - "uppercase"  → fuerza MAYÚSCULAS
+ * - "lowercase"  → fuerza minúsculas
+ * - "none"       → respeta lo que escribe el usuario (default)
+ */
+export type CaseTransform = "uppercase" | "lowercase" | "none";
+
+/** Contexto de Formik que se pasa a los callbacks onChange / onInput */
+export type FormikCtx = ReturnType<
+   typeof useFormikContext<Record<string, any>>
+>;
 
 type ResponsiveProps = {
    sm?: number;
@@ -58,6 +71,18 @@ type ResponsiveProps = {
    xl?: number;
    "2xl"?: number;
 };
+
+/* ------------------------------------------------------------------
+   HELPER: aplica la transformación de case
+------------------------------------------------------------------ */
+function applyCase(
+   value: string,
+   caseTransform: CaseTransform = "none",
+): string {
+   if (caseTransform === "uppercase") return value.toUpperCase();
+   if (caseTransform === "lowercase") return value.toLowerCase();
+   return value;
+}
 
 /* ------------------------------------------------------------------
    COMPONENTES INTERNOS REUTILIZABLES
@@ -176,7 +201,14 @@ interface FormikInputProps {
    rightIcon?: React.ReactNode;
    onRightIconClick?: () => void;
    onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
-   onChange?: (value: any) => void;
+   // ── Nuevos ──────────────────────────────────────────────────────
+   /** Transforma el case al vuelo. Default: "none" (respeta lo que escribe el usuario) */
+   caseTransform?: CaseTransform;
+   /** Se llama en cada pulsación de tecla ANTES de commitear a Formik */
+   onInput?: (value: string, formik: FormikCtx) => void;
+   /** Se llama cuando el valor ya fue commiteado a Formik */
+   onChange?: (value: string, formik: FormikCtx) => void;
+   // ────────────────────────────────────────────────────────────────
    handleModified?: HandleModifiedFn;
    responsive?: ResponsiveProps;
    padding?: boolean;
@@ -198,6 +230,8 @@ export function FormikInput(props: FormikInputProps) {
       rightIcon,
       onRightIconClick,
       onBlur,
+      caseTransform = "none",
+      onInput,
       onChange,
       handleModified,
       responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
@@ -224,14 +258,19 @@ export function FormikInput(props: FormikInputProps) {
 
    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value;
+      // Aplica máscara si existe, luego transforma el case
       let processed = mask ? mask(raw) : raw;
-      processed = processed.toUpperCase();
+      processed = applyCase(processed, caseTransform);
 
       setLocalValue(processed);
 
+      // onInput: dispara inmediatamente con el valor procesado
+      onInput?.(processed, formik);
+
       const updateField = () => {
          formik.setFieldValue(name, processed);
-         onChange?.(processed);
+         // onChange: dispara después de commitear a Formik
+         onChange?.(processed, formik);
          if (handleModified) {
             handleModified(
                { ...formik.values, [name]: processed },
@@ -372,6 +411,11 @@ interface FormikTextAreaProps {
    required?: boolean;
    placeholder?: string;
    debounceMs?: number;
+   // ── Nuevos ──────────────────────────────────────────────────────
+   caseTransform?: CaseTransform;
+   onInput?: (value: string, formik: FormikCtx) => void;
+   onChange?: (value: string, formik: FormikCtx) => void;
+   // ────────────────────────────────────────────────────────────────
    responsive?: ResponsiveProps;
    padding?: boolean;
 }
@@ -386,6 +430,9 @@ export function FormikTextArea(props: FormikTextAreaProps) {
       required = false,
       placeholder = " ",
       debounceMs,
+      caseTransform = "none",
+      onInput,
+      onChange,
       responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
       padding = true,
    } = props;
@@ -408,17 +455,20 @@ export function FormikTextArea(props: FormikTextAreaProps) {
    const isActive = hasValue || isFocused;
 
    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      let newValue = e.target.value;
-      newValue = newValue.toUpperCase();
+      const processed = applyCase(e.target.value, caseTransform);
 
-      setLocalValue(newValue);
+      setLocalValue(processed);
+      onInput?.(processed, formik);
+
       if (debounceMs) {
          if (debounceTimer.current) clearTimeout(debounceTimer.current);
          debounceTimer.current = window.setTimeout(() => {
-            formik.setFieldValue(name, newValue);
+            formik.setFieldValue(name, processed);
+            onChange?.(processed, formik);
          }, debounceMs);
       } else {
-         formik.setFieldValue(name, newValue);
+         formik.setFieldValue(name, processed);
+         onChange?.(processed, formik);
       }
    };
 
@@ -683,6 +733,9 @@ interface FormikNumberProps {
    romanNumerals?: boolean;
    disabled?: boolean;
    required?: boolean;
+   // ── Nuevos ──────────────────────────────────────────────────────
+   onChange?: (value: number, formik: FormikCtx) => void;
+   // ────────────────────────────────────────────────────────────────
    responsive?: ResponsiveProps;
    padding?: boolean;
 }
@@ -698,6 +751,7 @@ export function FormikNumber(props: FormikNumberProps) {
       romanNumerals = false,
       disabled = false,
       required = false,
+      onChange,
       responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
       padding = true,
    } = props;
@@ -744,6 +798,7 @@ export function FormikNumber(props: FormikNumberProps) {
    const setValue = (newVal: number) => {
       const clamped = Math.min(max, Math.max(min, newVal));
       formik.setFieldValue(name, clamped);
+      onChange?.(clamped, formik);
    };
 
    if (disabled) {
@@ -861,6 +916,7 @@ interface FormikCheckboxProps {
    label: string;
    disabled?: boolean;
    required?: boolean;
+   onChange?: (value: boolean, formik: FormikCtx) => void;
    responsive?: ResponsiveProps;
    padding?: boolean;
 }
@@ -871,6 +927,7 @@ export function FormikCheckbox(props: FormikCheckboxProps) {
       label,
       disabled = false,
       required = false,
+      onChange,
       responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
       padding = true,
    } = props;
@@ -880,6 +937,13 @@ export function FormikCheckbox(props: FormikCheckboxProps) {
       formik.touched[name] && formik.errors[name]
          ? String(formik.errors[name])
          : null;
+
+   const handleToggle = () => {
+      if (disabled) return;
+      const next = !value;
+      formik.setFieldValue(name, next);
+      onChange?.(next, formik);
+   };
 
    return (
       <ColComponent responsive={responsive} autoPadding={padding}>
@@ -892,7 +956,7 @@ export function FormikCheckbox(props: FormikCheckboxProps) {
                opacity: disabled ? 0.5 : 1,
                cursor: disabled ? "not-allowed" : "pointer",
             }}
-            onClick={() => !disabled && formik.setFieldValue(name, !value)}>
+            onClick={handleToggle}>
             <div
                style={{
                   width: 20,
@@ -941,6 +1005,7 @@ interface FormikSwitchProps {
    name: string;
    label: string;
    disabled?: boolean;
+   onChange?: (value: boolean, formik: FormikCtx) => void;
    responsive?: ResponsiveProps;
 }
 
@@ -949,6 +1014,7 @@ export function FormikSwitch(props: FormikSwitchProps) {
       name,
       label,
       disabled = false,
+      onChange,
       responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
    } = props;
    const formik = useFormikContext<Record<string, any>>();
@@ -978,9 +1044,11 @@ export function FormikSwitch(props: FormikSwitchProps) {
                   type="checkbox"
                   checked={value}
                   disabled={disabled}
-                  onChange={(e) =>
-                     formik.setFieldValue(name, e.target.checked ? 1 : 0)
-                  }
+                  onChange={(e) => {
+                     const next = e.target.checked;
+                     formik.setFieldValue(name, next ? 1 : 0);
+                     onChange?.(next, formik);
+                  }}
                   style={{
                      position: "absolute",
                      opacity: 0,
@@ -1040,6 +1108,7 @@ interface FormikRadioProps<TOption> {
    labelKey: keyof TOption;
    disabled?: boolean;
    required?: boolean;
+   onChange?: (value: any, formik: FormikCtx) => void;
    responsive?: ResponsiveProps;
    padding?: boolean;
 }
@@ -1053,6 +1122,7 @@ export function FormikRadio<TOption>(props: FormikRadioProps<TOption>) {
       labelKey,
       disabled = false,
       required = false,
+      onChange,
       responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
       padding = true,
    } = props;
@@ -1119,9 +1189,12 @@ export function FormikRadio<TOption>(props: FormikRadioProps<TOption>) {
                               cursor: disabled ? "not-allowed" : "pointer",
                               transition: DS.transition,
                            }}
-                           onClick={() =>
-                              !disabled && formik.setFieldValue(name, optValue)
-                           }>
+                           onClick={() => {
+                              if (!disabled) {
+                                 formik.setFieldValue(name, optValue);
+                                 onChange?.(optValue, formik);
+                              }
+                           }}>
                            <div
                               style={{
                                  width: 16,
@@ -1184,6 +1257,16 @@ interface FormikAutocompleteProps<TOption> {
    responsive?: ResponsiveProps;
    padding?: boolean;
    onSelect?: (value: TOption) => void;
+   onRefresh?: () => void | Promise<void>;
+   onAdd?: () => void;
+   // ── Nuevos ────────────────────────────────────────────────────
+   /** Dispara al seleccionar una opción (valor ya commiteado) */
+   onChange?: (value: any, formik: FormikCtx) => void;
+   /** Dispara en cada pulsación mientras el usuario escribe en el input */
+   onInput?: (text: string, formik: FormikCtx) => void;
+   /** Transforma el case del texto de búsqueda. Default: "none" */
+   caseTransform?: CaseTransform;
+   // ──────────────────────────────────────────────────────────────
 }
 
 export function FormikAutocomplete<TOption>(
@@ -1201,6 +1284,11 @@ export function FormikAutocomplete<TOption>(
       responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
       padding = true,
       onSelect,
+      onRefresh,
+      onAdd,
+      onChange,
+      onInput,
+      caseTransform = "none",
    } = props;
 
    const formik = useFormikContext<Record<string, any>>();
@@ -1209,6 +1297,7 @@ export function FormikAutocomplete<TOption>(
    const [showOptions, setShowOptions] = useState(false);
    const [isFocused, setIsFocused] = useState(false);
    const [activeIndex, setActiveIndex] = useState(-1);
+   const [isRefreshing, setIsRefreshing] = useState(false);
    const inputRef = useRef<HTMLInputElement>(null);
    const menuRef = useRef<HTMLUListElement>(null);
 
@@ -1287,8 +1376,11 @@ export function FormikAutocomplete<TOption>(
       setFilteredOptions(options);
    }, [options]);
 
-   const handleFilter = (query: string) => {
+   const handleFilter = (rawQuery: string) => {
+      const query = applyCase(rawQuery, caseTransform);
       setTextSearch(query);
+      // onInput: se dispara con cada carácter
+      onInput?.(query, formik);
       if (!query) {
          setFilteredOptions(options);
          if (value) formik.setFieldValue(name, null);
@@ -1305,6 +1397,24 @@ export function FormikAutocomplete<TOption>(
       setShowOptions(false);
       setIsFocused(false);
       onSelect?.(item);
+      // onChange: dispara cuando el usuario selecciona una opción
+      onChange?.(item[idKey], formik);
+   };
+
+   const handleRefresh = async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!onRefresh || isRefreshing) return;
+      setIsRefreshing(true);
+      try {
+         await onRefresh();
+      } finally {
+         setIsRefreshing(false);
+      }
+   };
+
+   const handleAdd = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onAdd?.();
    };
 
    useEffect(() => {
@@ -1340,6 +1450,21 @@ export function FormikAutocomplete<TOption>(
       }
    };
 
+   const actionButtonStyle: React.CSSProperties = {
+      padding: "0 7px",
+      background: "none",
+      border: "none",
+      cursor: "pointer",
+      color: DS.text3,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: "6px",
+      height: "28px",
+      width: "28px",
+      transition: "color 0.15s, background 0.15s",
+   };
+
    if (disabled)
       return (
          <DisabledField
@@ -1354,6 +1479,7 @@ export function FormikAutocomplete<TOption>(
    return (
       <ColComponent responsive={responsive} autoPadding={padding}>
          <div style={{ position: "relative", marginBottom: "20px" }}>
+            {/* Label flotante */}
             <label
                htmlFor={name}
                style={{
@@ -1381,6 +1507,8 @@ export function FormikAutocomplete<TOption>(
                   <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>
                )}
             </label>
+
+            {/* Input container */}
             <div
                style={{
                   display: "flex",
@@ -1389,9 +1517,11 @@ export function FormikAutocomplete<TOption>(
                   borderRadius: DS.r8,
                   background: DS.white,
                   boxShadow: isFocused ? DS.accentGlow : "none",
+                  transition: DS.transition,
                }}>
                <input
                   ref={inputRef}
+                  id={name}
                   type="text"
                   value={textSearch}
                   placeholder=" "
@@ -1417,6 +1547,116 @@ export function FormikAutocomplete<TOption>(
                      color: DS.text1,
                   }}
                />
+
+               {(onRefresh || onAdd) && (
+                  <div
+                     style={{
+                        width: "1px",
+                        height: "20px",
+                        background: DS.border,
+                        margin: "0 2px",
+                        flexShrink: 0,
+                     }}
+                  />
+               )}
+
+               {onRefresh && (
+                  <button
+                     type="button"
+                     title="Actualizar opciones"
+                     onClick={handleRefresh}
+                     disabled={isRefreshing}
+                     style={{
+                        ...actionButtonStyle,
+                        cursor: isRefreshing ? "not-allowed" : "pointer",
+                        opacity: isRefreshing ? 0.6 : 1,
+                     }}
+                     onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.color =
+                           DS.accent;
+                        (
+                           e.currentTarget as HTMLButtonElement
+                        ).style.background = DS.accentLight;
+                     }}
+                     onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.color =
+                           DS.text3;
+                        (
+                           e.currentTarget as HTMLButtonElement
+                        ).style.background = "none";
+                     }}>
+                     {isRefreshing ? (
+                        <div
+                           style={{
+                              width: 13,
+                              height: 13,
+                              border: `2px solid ${DS.border}`,
+                              borderTopColor: DS.accent,
+                              borderRadius: "50%",
+                              animation: "spin 0.7s linear infinite",
+                           }}
+                        />
+                     ) : (
+                        <svg
+                           width={14}
+                           height={14}
+                           viewBox="0 0 24 24"
+                           fill="none"
+                           stroke="currentColor"
+                           strokeWidth={2}
+                           strokeLinecap="round"
+                           strokeLinejoin="round">
+                           <path d="M1 4v6h6" />
+                           <path d="M23 20v-6h-6" />
+                           <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15" />
+                        </svg>
+                     )}
+                  </button>
+               )}
+
+               {onAdd && (
+                  <button
+                     type="button"
+                     title="Agregar nuevo"
+                     onClick={handleAdd}
+                     style={actionButtonStyle}
+                     onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.color =
+                           DS.successText ?? "#16a34a";
+                     }}
+                     onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.color =
+                           DS.text3;
+                        (
+                           e.currentTarget as HTMLButtonElement
+                        ).style.background = "none";
+                     }}>
+                     <svg
+                        width={15}
+                        height={15}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                        strokeLinecap="round">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                     </svg>
+                  </button>
+               )}
+
+               {(onRefresh || onAdd) && (
+                  <div
+                     style={{
+                        width: "1px",
+                        height: "20px",
+                        background: DS.border,
+                        margin: "0 2px",
+                        flexShrink: 0,
+                     }}
+                  />
+               )}
+
                {loading ? (
                   <div style={{ padding: "0 12px" }}>
                      <div
@@ -1449,6 +1689,7 @@ export function FormikAutocomplete<TOption>(
                         stroke="currentColor"
                         style={{
                            transform: showOptions ? "rotate(180deg)" : "none",
+                           transition: "transform 0.18s",
                         }}>
                         <path
                            strokeLinecap="round"
@@ -1460,6 +1701,8 @@ export function FormikAutocomplete<TOption>(
                   </button>
                )}
             </div>
+
+            {/* Dropdown */}
             <AnimatePresence>
                {showOptions && (
                   <motion.ul
@@ -1556,6 +1799,7 @@ export function FormikAutocomplete<TOption>(
                   </motion.ul>
                )}
             </AnimatePresence>
+
             <FieldError error={error} />
          </div>
       </ColComponent>
@@ -1571,6 +1815,7 @@ interface FormikColorPickerProps {
    colorPalette: string[];
    disabled?: boolean;
    required?: boolean;
+   onChange?: (value: string, formik: FormikCtx) => void;
    responsive?: ResponsiveProps;
    padding?: boolean;
 }
@@ -1582,6 +1827,7 @@ export function FormikColorPicker(props: FormikColorPickerProps) {
       colorPalette,
       disabled = false,
       required = false,
+      onChange,
       responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
       padding = true,
    } = props;
@@ -1607,6 +1853,7 @@ export function FormikColorPicker(props: FormikColorPickerProps) {
 
    const selectColor = (color: string) => {
       formik.setFieldValue(name, color);
+      onChange?.(color, formik);
       setIsOpen(false);
    };
 
@@ -1787,6 +2034,7 @@ interface FormikImageInputProps {
    acceptedFileTypes?: string;
    multiple?: boolean;
    maxFiles?: number;
+   onChange?: (value: File | File[] | null, formik: FormikCtx) => void;
    responsive?: ResponsiveProps;
    padding?: boolean;
 }
@@ -1799,12 +2047,14 @@ export function FormikImageInput(props: FormikImageInputProps) {
       acceptedFileTypes = "image/*",
       multiple = false,
       maxFiles = 5,
+      onChange,
       responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
       padding = true,
    } = props;
 
    const { setFieldValue, values, errors, touched } =
       useFormikContext<Record<string, any>>();
+   const formik = useFormikContext<Record<string, any>>();
    const [previews, setPreviews] = useState<string[]>([]);
    const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1830,10 +2080,13 @@ export function FormikImageInput(props: FormikImageInputProps) {
          const newPreviews = fileList.map((f) => URL.createObjectURL(f));
          setPreviews((prev) => [...prev, ...newPreviews]);
          const currentFiles = (values[name] as File[]) || [];
-         setFieldValue(name, [...currentFiles, ...fileList]);
+         const nextFiles = [...currentFiles, ...fileList];
+         setFieldValue(name, nextFiles);
+         onChange?.(nextFiles, formik);
       } else {
          setPreviews([URL.createObjectURL(fileList[0])]);
          setFieldValue(name, fileList[0]);
+         onChange?.(fileList[0], formik);
       }
       if (fileInputRef.current) fileInputRef.current.value = "";
    };
@@ -1841,16 +2094,16 @@ export function FormikImageInput(props: FormikImageInputProps) {
    const handleRemove = (index: number) => {
       if (multiple) {
          const currentFiles = (values[name] as File[]) || [];
-         setFieldValue(
-            name,
-            currentFiles.filter((_, i) => i !== index),
-         );
+         const nextFiles = currentFiles.filter((_, i) => i !== index);
+         setFieldValue(name, nextFiles);
+         onChange?.(nextFiles, formik);
          URL.revokeObjectURL(previews[index]);
          setPreviews(previews.filter((_, i) => i !== index));
       } else {
          if (previews[0]) URL.revokeObjectURL(previews[0]);
          setPreviews([]);
          setFieldValue(name, null);
+         onChange?.(null, formik);
       }
    };
 

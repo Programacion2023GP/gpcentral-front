@@ -14,7 +14,7 @@ const useUsersData = (): UsersDataReturn => {
          employee_id: 0,
          username: "",
          email: "",
-         password: "",
+         password: "123456",
          active: true,
       }),
       [],

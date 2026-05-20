@@ -71,7 +71,7 @@ export const oraniztionCrudConfig = ConfigCrud<
    //       "Estado y Manager": ["active", "organization_id"],
    //    },
    // })
-   .table({
+   .tableColumnse({
       uuid: {
          label: "UUID",
       },

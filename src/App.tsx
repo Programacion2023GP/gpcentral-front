@@ -24,19 +24,24 @@ import {
    useLocation,
    useNavigate,
 } from "react-router-dom";
-import { FaUserDoctor } from "react-icons/fa6";
 import Spinner from "./ui/components/loading/loading";
 import { RiFileList3Line } from "react-icons/ri";
 import { configureGeneric } from "react-zustore";
 import { env } from "./constant";
-import type { UserTableRow } from "./ui/hooks/users/users.model";
-import PageEmployees from "./ui/pages/catalogues/employees/PageEmployees";
 
 // Lazy imports para todas las páginas
-const PageDepartaments = lazy(
-   () => import("./ui/pages/catalogues/departaments/PageDepartments"),
-);import icons from './constant/icons';
 
+const PageDepartments = lazy(
+   () => import("./ui/pages/catalogues/departaments/PageDepartments"),
+);
+const PagePositions = lazy(
+   () => import("./ui/pages/catalogues/positions/PagePositions"),
+);
+const PageEmployees = lazy(
+   () => import("./ui/pages/catalogues/employees/PageEmployees"),
+);
+const PageUsers = lazy(() => import("./ui/pages/catalogues/users/PageUsers"));
+import icons from "./constant/icons";
 
 configureGeneric({
    baseUrl: "http://127.0.0.1:8000/api",
@@ -147,13 +152,6 @@ const MainLayout = () => {
    const sidebarItems: SidebarItem[] = useMemo(
       () => [
          createRouteItem(
-            1,
-            "usuarios_",
-            "/usuarios",
-            <FaUserTie />,
-            "Usuarios",
-         ),
-         createRouteItem(
             2,
             "tramite_",
             "/tramite",
@@ -174,12 +172,26 @@ const MainLayout = () => {
                   <icons.Hi.HiBuildingLibrary />,
                   "Departamentos",
                ),
-                createRouteItem(
+               createRouteItem(
                   72,
+                  "catalogo_puestos_",
+                  "/catalogos/puestos",
+                  <icons.Pi.PiDesk />,
+                  "Puestos",
+               ),
+               createRouteItem(
+                  73,
                   "catalogo_empleados_",
                   "/catalogos/empleados",
                   <icons.Hi.HiUser />,
                   "Empleados",
+               ),
+               createRouteItem(
+                  74,
+                  "usuarios_",
+                  "/catalogos/usuarios",
+                  <FaUserTie />,
+                  "Usuarios",
                ),
             ],
          ),
@@ -343,7 +355,15 @@ function App() {
                   path="departamentos"
                   element={
                      <Suspense fallback={<Spinner />}>
-                        <PageDepartaments />
+                        <PageDepartments />
+                     </Suspense>
+                  }
+               />
+               <Route
+                  path="puestos"
+                  element={
+                     <Suspense fallback={<Spinner />}>
+                        <PagePositions />
                      </Suspense>
                   }
                />
@@ -352,6 +372,14 @@ function App() {
                   element={
                      <Suspense fallback={<Spinner />}>
                         <PageEmployees />
+                     </Suspense>
+                  }
+               />
+               <Route
+                  path="usuarios"
+                  element={
+                     <Suspense fallback={<Spinner />}>
+                        <PageUsers />
                      </Suspense>
                   }
                />

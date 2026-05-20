@@ -11,7 +11,7 @@ const useEmployeesData = (): EmployeesDataReturn => {
    const initialState = useMemo<EmployeeForm>(
       () => ({
          id: 0,
-         employe_code: 0,
+         employee_code: 0,
          hire_date: "",
          active: true,
          name: "",

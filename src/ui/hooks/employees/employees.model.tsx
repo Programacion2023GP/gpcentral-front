@@ -3,12 +3,14 @@ import { env } from "../../../constant";
 import { ConfigCrud } from "../../../models/genericmodels.model";
 import { formatDatetime, formatPhone } from "../../../utils/helpers";
 import PhotoZoom from "../../components/images/images";
+import useDepartmentsData from "../departaments/useDepartamentsData";
+import usePositionsData from "../positions/usePositionsData";
 import icons from "./../../../constant/icons";
 
 // 1. Interfaz del formulario (lo que se guarda en BD)
 export interface EmployeeForm {
    id: number;
-   employe_code: number | null;
+   employee_code: number | null;
    hire_date: string;
    email: string | null;
    active: boolean;
@@ -62,7 +64,7 @@ export interface EmployeeTableRow extends EmployeeForm {
 export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
    .fields({
       text: [
-         "employe_code",
+         "employee_code",
          "hire_date", //fecha de contratación
          // "emplooye_id",
          "name",
@@ -75,7 +77,7 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
          "end_date",
          "created_at",
       ],
-      select: ["position_uuid"],
+      select: ["department_uuid", "position_uuid"],
       radio: ["gender"],
       // toggle: ["active"],
       file: ["avatar", "signature_image"],
@@ -84,63 +86,111 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
       name: {
          label: "Nombre",
          placeholder: "Escribe tu nombre o nombres",
+         responsive: {
+            md: 6,
+         },
          validation: ({ yup }) => yup.string().required("Nombre requerido"),
       },
       plast_name: {
          label: "Apellido Paterno",
          placeholder: "Escribe tu primer apellido",
+         responsive: {
+            md: 3,
+         },
          validation: ({ yup }) =>
             yup.string().required("Apellido Paterno requerido"),
       },
       mlast_name: {
          label: "Apellido Materno",
          placeholder: "Escribe tu segundo apellido",
+         responsive: {
+            md: 3,
+         },
          validation: ({ yup }) => yup.string().notRequired(),
       },
       rfc: {
          label: "RFC",
          placeholder: "Escribe tu rfc",
+         responsive: {
+            md: 4,
+         },
          validation: ({ yup }) => yup.string().required("RFC requerido"),
       },
       curp: {
          label: "CURP",
          placeholder: "Escribe tu curp",
+         responsive: {
+            md: 4,
+         },
          validation: ({ yup }) => yup.string().required("CURP requerido"),
       },
       phone: {
          label: "Número celular",
          placeholder: "Escribe tu celular a 10 digitos",
+         responsive: {
+            md: 4,
+         },
          validation: ({ yup }) =>
             yup.string().required("Número celular requerido"),
-      },
-      hire_date: {
-         label: "Fecha de ingreso",
-         placeholder: "DD/MM/AAAA",
-         type: "date",
-         validation: ({ yup }) =>
-            yup.string().required("Fecha de ingreso Requerido"),
       },
       start_date: {
          label: "Fecha Inicial",
          placeholder: "DD/MM/AAAA",
          type: "datetime",
-         validation: ({ yup }) =>
-            yup.string().required("Fecha Inicial Requerido"),
+         responsive: {
+            md: 4,
+         },
+         validation: ({ yup }) => yup.string().notRequired(),
       },
       end_date: {
          label: "Fecha Final",
          placeholder: "DD/MM/AAAA",
          type: "datetime",
+         responsive: {
+            md: 4,
+         },
+         validation: ({ yup }) => yup.string().notRequired(),
+      },
+      hire_date: {
+         label: "Fecha de ingreso",
+         placeholder: "DD/MM/AAAA",
+         type: "date",
+         responsive: {
+            md: 4,
+         },
          validation: ({ yup }) =>
-            yup.string().required("Fecha Final Requerido"),
+            yup.string().required("Fecha de ingreso Requerido"),
+      },
+      employee_code: {
+         label: "Numero de Nomina",
+         placeholder: "Escribe tu numero de nomina",
+         responsive: {
+            md: 4,
+         },
+         validation: ({ yup }) =>
+            yup.string().required("Número de nomina requerido"),
       },
    })
    .select({
+      department_uuid: {
+         label: "Departamento",
+         keyId: "uuid",
+         keyLabel: "name",
+         responsive: {
+            md: 6,
+         },
+         selectOptionsHook: () => useDepartmentsData().items,
+         validation: ({ yup }) =>
+            yup.string().required("Departamento requerido"),
+      },
       position_uuid: {
          label: "Puesto",
          keyId: "uuid",
          keyLabel: "name",
-         options: [],
+         responsive: {
+            md: 6,
+         },
+         selectOptionsHook: () => usePositionsData().items,
          validation: ({ yup }) => yup.string().required("Puesto requerido"),
       },
    })
@@ -153,16 +203,25 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
             { id: "M", label: "Masculino" },
             { id: "F", label: "Femenino" },
          ],
+         responsive: {
+            md: 4,
+         },
       },
    })
    .file({
       avatar: {
          label: "Imagen del trabajador",
          showPreviews: true,
+         responsive: {
+            md: 6,
+         },
       },
       signature_image: {
          label: "Firma",
          showPreviews: true,
+         responsive: {
+            md: 6,
+         },
       },
    })
    .toggle({
@@ -176,6 +235,7 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
       fieldsPerSection: {
          "Información Personal": [
             "avatar",
+            "signature_image",
             "name",
             "plast_name",
             "mlast_name",
@@ -185,11 +245,11 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
             "phone",
             "start_date",
             "end_date",
-            "signature_image",
          ],
          "Información de Empleado": [
-            "employe_code",
+            "employee_code",
             "hire_date",
+            "department_uuid",
             "position_uuid",
          ],
       },
@@ -236,7 +296,7 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
             </div>
          ),
       },
-      employe_code: {
+      employee_code: {
          label: "Número de nomina",
          render: (value) => (
             <a
@@ -269,6 +329,9 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
          label: "Género",
          render: (value, _row) =>
             `${value === "M" ? `Masculino` : value === "F" ? `Femenino` : "Sin asignar"}`,
+      },
+      department_name: {
+         label: "Departamento",
       },
       position_name: {
          label: "Puesto",
@@ -329,9 +392,9 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
       enabled: true,
       activeViews: true,
       listTile: {
-         title: (row) => row.name,
+         title: (row) => row.full_name,
          subtitle: (row) =>
-            `${row.employe_code} | ${row.position_name || "Sin org"}`,
+            `${row.employee_code} | ${row.position_name || "Sin asignar"}`,
          leading: (row) => (
             <div className="w-10 h-10 rounded-full bg-[#9B2242] text-white flex items-center justify-center font-bold">
                {row.name?.charAt(0)?.toUpperCase() || "D"}
@@ -347,7 +410,7 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
          enabled: true,
          filters: [
             { dataField: "name", label: "Nombre", type: "text" },
-            { dataField: "employe_code", label: "Código", type: "text" },
+            { dataField: "employee_code", label: "Núm. Nomina", type: "text" },
             {
                dataField: "active",
                label: "Estado",

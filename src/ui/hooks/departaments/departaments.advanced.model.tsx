@@ -1,4 +1,4 @@
-// src/ui/hooks/departaments/departaments.advanced.model.tsx
+// src/ui/hooks/departments/departments.advanced.model.tsx
 // Ejemplo COMPLETO con TODAS las funcionalidades avanzadas
 import { ConfigCrud } from "../../../models/genericmodels.model";
 import type {
@@ -15,7 +15,7 @@ import {
 } from "react-icons/fi";
 
 // 1. Interfaz para el formulario
-export interface DepartamentForm {
+export interface DepartmentForm {
    id?: number;
    name: string;
    description: string;
@@ -25,15 +25,15 @@ export interface DepartamentForm {
 }
 
 // 2. Interfaz para la tabla (enriquecida)
-export interface DepartamentTable extends DepartamentForm {
+export interface DepartmentTable extends DepartmentForm {
    manager_name?: string;
    employees_count?: number;
 }
 
 // 3. Configuración Base del CRUD
-export const departamentBaseConfig = ConfigCrud<
-   DepartamentForm,
-   DepartamentTable
+export const departmentBaseConfig = ConfigCrud<
+   DepartmentForm,
+   DepartmentTable
 >()
    .fields({
       text: ["name", "description"],
@@ -75,7 +75,7 @@ export const departamentBaseConfig = ConfigCrud<
          label: "Manager",
       },
    })
-   .table({
+   .tableColumns({
       name: {
          label: "Nombre",
          render: (value, row) => (
@@ -123,13 +123,13 @@ export const departamentBaseConfig = ConfigCrud<
    .build();
 
 // 4. Configuración AVANZADA completa
-export const departamentAdvancedConfig: AdvancedCrudConfig<
-   DepartamentForm,
-   DepartamentTable
+export const departmentAdvancedConfig: AdvancedCrudConfig<
+   DepartmentForm,
+   DepartmentTable
 > = {
    // Permisos (RBAC)
    permissions: {
-      resource: "departaments",
+      resource: "departments",
       create: "create",
       read: "read",
       update: "update",
@@ -231,7 +231,7 @@ export const departamentAdvancedConfig: AdvancedCrudConfig<
    // Tiempo real (WebSocket)
    realtime: {
       enabled: true,
-      endpoint: "ws://localhost:8080/ws/departaments",
+      endpoint: "ws://localhost:8080/ws/departments",
       events: ["create", "update", "delete"],
       reconnectInterval: 3000,
       maxReconnectAttempts: 5,
@@ -323,7 +323,7 @@ export const departamentAdvancedConfig: AdvancedCrudConfig<
             {
                id: "1",
                action: "CREATE" as any,
-               resource: "departaments",
+               resource: "departments",
                resourceId: resourceId,
                userId: "user1",
                userName: "Admin",
@@ -344,8 +344,8 @@ import {
    type GenericDataConfig,
 } from "../../../hooks/usegenericdata";
 
-const useDepartamentsAdvanced = () => {
-   const baseConfig: GenericDataConfig<DepartamentForm> = {
+const useDepartmentsAdvanced = () => {
+   const baseConfig: GenericDataConfig<DepartmentForm> = {
       initialState: {
          id: undefined,
          name: "",
@@ -353,16 +353,16 @@ const useDepartamentsAdvanced = () => {
          status: "active",
          manager_id: undefined,
       },
-      prefix: "departaments",
+      prefix: "departments",
       autoFetch: true,
    };
 
-   const advancedHook = useAdvancedCrud<DepartamentForm, DepartamentTable>(
+   const advancedHook = useAdvancedCrud<DepartmentForm, DepartmentTable>(
       baseConfig,
-      departamentAdvancedConfig,
+      departmentAdvancedConfig,
    );
 
    return advancedHook;
 };
 
-export default useDepartamentsAdvanced;
+export default useDepartmentsAdvanced;

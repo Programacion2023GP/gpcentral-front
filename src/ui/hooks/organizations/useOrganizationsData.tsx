@@ -1,4 +1,4 @@
-// hooks/useDepartamentsData.ts
+// hooks/useDepartmentsData.ts
 import { useMemo } from "react";
 import { useGenericData, type GenericDataReturn } from "react-zustore";
 import type { OrganizationForm } from "./organizations.model";

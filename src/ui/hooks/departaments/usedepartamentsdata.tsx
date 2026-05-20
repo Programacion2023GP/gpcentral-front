@@ -1,13 +1,13 @@
-// hooks/useDepartamentsData.ts
+// hooks/useDepartmentsData.ts
 import { useMemo } from "react";
 import { useGenericData, type GenericDataReturn } from "react-zustore";
 import type { DepartmentForm } from "./departaments.model";
 
-// ✅ Exportado — necesario para SuperCrud<Departaments> en la page
+// ✅ Exportado — necesario para SuperCrud<Departments> en la page
 
-export type DepartamentsDataReturn = GenericDataReturn<DepartmentForm>;
+export type DepartmentsDataReturn = GenericDataReturn<DepartmentForm>;
 
-const useDepartamentsData = (): DepartamentsDataReturn => {
+const useDepartmentsData = (): DepartmentsDataReturn => {
    const initialState = useMemo<DepartmentForm>(
       () => ({
          id: 0,
@@ -29,9 +29,9 @@ const useDepartamentsData = (): DepartamentsDataReturn => {
       autoFetch: true,
       // persistKey: "departments-persist",
       hooks: {
-         onError: (msg) => console.error("[Departaments]", msg),
+         onError: (msg) => console.error("[Departments]", msg),
       },
    });
 };
 
-export default useDepartamentsData;
+export default useDepartmentsData;
