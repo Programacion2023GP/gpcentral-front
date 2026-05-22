@@ -229,31 +229,31 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
          label: "Empleado Activo",
       },
    })
-   .layout({
-      mode: "box",
-      sections: ["Información Personal", "Información de Empleado"],
-      fieldsPerSection: {
-         "Información Personal": [
-            "avatar",
-            "signature_image",
-            "name",
-            "plast_name",
-            "mlast_name",
-            "rfc",
-            "curp",
-            "gender",
-            "phone",
-            "start_date",
-            "end_date",
-         ],
-         "Información de Empleado": [
-            "employee_code",
-            "hire_date",
-            "department_uuid",
-            "position_uuid",
-         ],
-      },
-   })
+   // .layout({
+   //    mode: "box",
+   //    sections: ["Información Personal", "Información de Empleado"],
+   //    fieldsPerSection: {
+   //       "Información Personal": [
+   //          "avatar",
+   //          "signature_image",
+   //          "name",
+   //          "plast_name",
+   //          "mlast_name",
+   //          "rfc",
+   //          "curp",
+   //          "gender",
+   //          "phone",
+   //          "start_date",
+   //          "end_date",
+   //       ],
+   //       "Información de Empleado": [
+   //          "employee_code",
+   //          "hire_date",
+   //          "department_uuid",
+   //          "position_uuid",
+   //       ],
+   //    },
+   // })
    .tableHeader({
       title: "Empleados",
       subtitle: "Gestión de empleados",
@@ -287,12 +287,27 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
             <div className="flex items-center gap-2">
                <div className="flex items-center justify-center w-8 h-8 text-sm font-semibold text-white rounded-full bg-gradient-to-br from-blue-500 to-indigo-600">
                   <PhotoZoom
-                     src={value}
+                     src={`${env.API_URL_IMG}/${value}`}
                      alt="Avatar"
                      title="Imagen del empleado"
                   />
                </div>
-               <span className="font-medium text-gray-900">{value}</span>
+               {/* <span className="font-medium text-gray-900">{`${env.API_URL_IMG}/${value}`}</span> */}
+            </div>
+         ),
+      },
+      signature_image: {
+         label: "Firma",
+         render: (value, _row) => (
+            <div className="flex items-center gap-2">
+               <div className="flex items-center justify-center w-8 h-8 text-sm font-semibold text-white rounded-full bg-gradient-to-br from-blue-500 to-indigo-600">
+                  <PhotoZoom
+                     src={`${env.API_URL_IMG}/${value}`}
+                     alt="Firma"
+                     title="Firma del empleado"
+                  />
+               </div>
+               {/* <span className="font-medium text-gray-900">{`${env.API_URL_IMG}/${value}`}</span> */}
             </div>
          ),
       },
@@ -376,7 +391,8 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
                   label: "Pendiente",
                },
             };
-            const config = statusConfig[value] || statusConfig.false;
+            const config =
+               statusConfig[value ? "true" : "false"] || statusConfig.false;
             return (
                <span
                   className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}>

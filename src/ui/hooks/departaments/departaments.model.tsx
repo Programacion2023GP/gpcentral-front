@@ -221,7 +221,8 @@ export const departmentCrudConfig = ConfigCrud<
                   label: "Pendiente",
                },
             };
-            const config = statusConfig[value] || statusConfig.false;
+            const config =
+               statusConfig[value ? "true" : "false"] || statusConfig.false;
             return (
                <span
                   className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}>

@@ -99,8 +99,6 @@ export const userCrudConfig = ConfigCrud<UserForm, UserTableRow>()
          // options: [],
          selectOptionsHook: () => useEmployeesData().items,
          onChange: (value, formik) => {
-            console.log("🚀 ~ formik:", formik);
-            console.log("🚀 ~ value:", value);
             formik.setFieldValue("username", generateUsername(value.full_name));
          },
          validation: ({ yup }) => yup.string().notRequired(),
@@ -130,6 +128,7 @@ export const userCrudConfig = ConfigCrud<UserForm, UserTableRow>()
    .tableColumns({
       avatar: {
          label: "Foto empleado",
+         pinned: "left",
          render: (value, _row) => (
             <div className="flex items-center gap-2">
                <div className="flex items-center justify-center w-8 h-8 text-sm font-semibold text-white rounded-full bg-gradient-to-br from-blue-500 to-indigo-600">
@@ -149,9 +148,7 @@ export const userCrudConfig = ConfigCrud<UserForm, UserTableRow>()
       employee_code: {
          label: "Número de empleado",
          render: (value) => (
-            <a
-               href={`mailto:${value}`}
-               className="text-blue-600 hover:text-blue-700">
+            <a href={`${value}`} className="text-blue-600 hover:text-blue-700">
                {value}
             </a>
          ),
@@ -160,9 +157,21 @@ export const userCrudConfig = ConfigCrud<UserForm, UserTableRow>()
          label: "Empleado",
          render: (value, _row) => `${value}`,
       },
+      department_name: {
+         label: "Departamento",
+         render: (value, _row) => `${value}`,
+      },
+      position_name: {
+         label: "Puesto",
+         render: (value, _row) => `${value}`,
+      },
       active: {
          label: "Estado",
-         filterType: "boolean",
+         // filterType: "select",
+         // filterOptions: [
+         //    { value: true, label: "Activo" },
+         //    { value: false, label: "Inactivo" },
+         // ],
          render: (value) => {
             const statusConfig: Record<
                string,
@@ -193,7 +202,8 @@ export const userCrudConfig = ConfigCrud<UserForm, UserTableRow>()
                   label: "Pendiente",
                },
             };
-            const config = statusConfig[String(value)] || statusConfig.false;
+            const config =
+               statusConfig[value ? "true" : "false"] || statusConfig.false;
             return (
                <span
                   className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}>

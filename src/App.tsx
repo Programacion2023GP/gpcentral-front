@@ -31,6 +31,9 @@ import { env } from "./constant";
 
 // Lazy imports para todas las páginas
 
+const PageOrganizations = lazy(
+   () => import("./ui/pages/catalogues/organizations/PageOrganizations"),
+);
 const PageDepartments = lazy(
    () => import("./ui/pages/catalogues/departaments/PageDepartments"),
 );
@@ -165,6 +168,13 @@ const MainLayout = () => {
             "Catálogos",
             <FaBuildingColumns />,
             [
+               createRouteItem(
+                  70,
+                  "catalogo_organizaciones_",
+                  "/catalogos/organizaciones",
+                  <icons.Pi.PiCodepenLogoFill />,
+                  "Organizaciones",
+               ),
                createRouteItem(
                   71,
                   "catalogo_departamentos_",
@@ -351,6 +361,14 @@ function App() {
                // </ProtectedRoute>
             }>
             <Route path="catalogos">
+               <Route
+                  path="organizaciones"
+                  element={
+                     <Suspense fallback={<Spinner />}>
+                        <PageOrganizations />
+                     </Suspense>
+                  }
+               />
                <Route
                   path="departamentos"
                   element={

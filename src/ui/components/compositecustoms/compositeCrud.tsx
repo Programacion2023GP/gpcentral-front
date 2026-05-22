@@ -1031,7 +1031,9 @@ interface BoxFormLocalProps {
 }
 
 const BoxFormLocal = ({ sections, onSave, renderField }: BoxFormLocalProps) => {
+   console.log("🚀 ~ BoxFormLocal ~ onSave:", onSave);
    const formik = useFormikContext();
+   console.log("🚀 ~ BoxFormLocal ~ formik:", formik);
 
    const handleSave = async () => {
       const errors = await formik.validateForm();
@@ -1702,7 +1704,7 @@ const SuperCrud = <
                   <CustomTable
                      loading={hook.loading}
                      data={hook.items || []}
-                     paginate={[5, 10, 25, 50, 100, 500, 1000]}
+                     paginate={[100, 5, 10, 25, 50, 500, 1000]}
                      columns={tableColumns as any}
                      refreshData={hook.fetchData}
                      actions={(row) => (
@@ -2044,7 +2046,7 @@ const SuperCrud = <
                   <CustomTable
                      loading={hook.loading}
                      data={hook.items || []}
-                     paginate={[5, 10, 25, 50, 100, 500, 1000]}
+                     paginate={[100, 5, 10, 25, 50, 500, 1000]}
                      columns={tableColumns as any}
                      refreshData={hook.fetchData}
                      actions={(row) => (
@@ -2124,16 +2126,20 @@ const SuperCrud = <
                         !sectioned.hasSections ? "Guardar" : undefined
                      }
                      buttonLoading={hook.loading}>
-                     {(formikBag: any) => (
-                        <RenderFormContent
-                           computedFields={computedFields}
-                           sectioned={sectioned}
-                           activeStep={activeStep}
-                           setActiveStep={setActiveStep}
-                           renderField={renderField}
-                           onSubmit={formikBag.handleSubmit}
-                        />
-                     )}
+                     {(formikBag: any) => {
+                        console.log("🚀 ~ SuperCrud ~ formikBag:", formikBag);
+
+                        return (
+                           <RenderFormContent
+                              computedFields={computedFields}
+                              sectioned={sectioned}
+                              activeStep={activeStep}
+                              setActiveStep={setActiveStep}
+                              renderField={renderField}
+                              onSubmit={formikBag.handleSubmit}
+                           />
+                        );
+                     }}
                   </FormikForm>
                );
             }}

@@ -31,7 +31,7 @@ export interface PositionTableRow extends PositionForm {}
 // 3. Configuración CORREGIDA
 export const positionCrudConfig = ConfigCrud<PositionForm, PositionTableRow>()
    .fields({
-      text: ["uuid", "name"],
+      text: ["uuid", "name", "start_date"],
       select: ["parent_position_uuid"],
       toggle: ["active"],
    })
@@ -46,6 +46,13 @@ export const positionCrudConfig = ConfigCrud<PositionForm, PositionTableRow>()
          label: "Puesto",
          placeholder: "Nombre del puesto",
          validation: ({ yup }) => yup.string().required("Puesto requerido"),
+      },
+      start_date: {
+         label: "Fecha de inicio",
+         type: "date",
+         placeholder: "Nombre del puesto",
+         validation: ({ yup }) =>
+            yup.string().required("Fecha de inicio requerido"),
       },
    })
    .select({
@@ -62,14 +69,14 @@ export const positionCrudConfig = ConfigCrud<PositionForm, PositionTableRow>()
          label: "Puesto Activo",
       },
    })
-   // .layout({
-   //    mode: "box",
-   //    sections: ["Información General", "Estado y Manager"],
-   //    fieldsPerSection: {
-   //       "Información General": ["uuid", "name"],
-   //       "Estado y Manager": ["active", "position_id"],
-   //    },
-   // })
+   .layout({
+      mode: "box",
+      sections: ["Información General", "Opcional"],
+      fieldsPerSection: {
+         "Información General": ["uuid", "name", "start_date", "active"],
+         Opcional: ["parent_position_uuid"],
+      },
+   })
 
    .tableHeader({
       title: "Puestos",
@@ -126,7 +133,8 @@ export const positionCrudConfig = ConfigCrud<PositionForm, PositionTableRow>()
                   label: "Pendiente",
                },
             };
-            const config = statusConfig[value] || statusConfig.false;
+            const config =
+               statusConfig[value ? "true" : "false"] || statusConfig.false;
             return (
                <span
                   className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}>

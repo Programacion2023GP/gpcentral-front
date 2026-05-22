@@ -11,17 +11,12 @@ const useOrganizationsData = (): OrganizationsDataReturn => {
    const initialState = useMemo<OrganizationForm>(
       () => ({
          id: 0,
-         uuid: null,
-         active: true,
          code: null,
-         created_at: null,
-         deleted_at: null,
-         end_date: null,
          name: null,
-         organization_id: null,
-         seal_image: null,
-         start_date: null,
+         active: true,
+         created_at: null,
          updated_at: null,
+         deleted_at: null,
       }),
       [],
    );
