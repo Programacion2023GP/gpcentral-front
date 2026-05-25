@@ -1,5 +1,3 @@
-// import { createTheme } from "@mui/material";
-
 const env = {
    APP_KEY: "local", // Clave para WebSocket
    VERSION: __APP_VERSION__, //import.meta.env.VITE_VERSION,

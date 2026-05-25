@@ -23,8 +23,8 @@ export interface DepartmentForm {
    //     position?: string;
    //     hire_date?: string;
    //  } | null;
-   created_at?: string;
-   updated_at?: string;
+   created_at?: string | null;
+   updated_at?: string | null;
    deleted_at?: string | null;
 }
 

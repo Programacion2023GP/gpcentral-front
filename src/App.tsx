@@ -47,7 +47,7 @@ const PageUsers = lazy(() => import("./ui/pages/catalogues/users/PageUsers"));
 import icons from "./constant/icons";
 
 configureGeneric({
-   baseUrl: "http://127.0.0.1:8000/api",
+   baseUrl: env.API_URL,
    responseMap: {
       ok: (res) => res?.status == true,
       data: (res) => res?.result ?? [],
@@ -213,7 +213,7 @@ const MainLayout = () => {
    const mainRef = useRef<HTMLElement>(null);
 
    const handleMainClick = useCallback(
-      (e: MouseEvent) => {
+      (_e: MouseEvent) => {
          if (open) {
             setOpen(false);
          }

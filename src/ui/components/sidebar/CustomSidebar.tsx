@@ -1,5 +1,6 @@
 // components/sidebar/Sidebar.tsx
 import { type ReactNode } from "react";
+import { env } from "../../../constant";
 
 interface SidebarProps {
    children: ReactNode;
@@ -92,8 +93,9 @@ export const Sidebar = ({ name, children }: SidebarProps) => {
                   display: "flex",
                   alignItems: "center",
                   gap: "10px",
+                  color: "whitesmoke",
                }}>
-               {name}
+               <b>{env.NAME_SYSTEM}</b> | <small>v{env.VERSION}</small>
             </div>
          </div>
       </aside>

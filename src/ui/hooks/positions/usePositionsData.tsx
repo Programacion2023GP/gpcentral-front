@@ -15,10 +15,10 @@ const usePositionsData = (): PositionsDataReturn => {
          // department_uuid: "",
          name: "",
          parent_position_uuid: "",
-         start_date: "",
+         start_date: new Date().toString(),
          end_date: "",
          active: true,
-         updated_at: null,
+         updated_at: "",
       }),
       [],
    );

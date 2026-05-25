@@ -38,8 +38,8 @@ export interface EmployeeForm {
    //     position?: string;
    //     hire_date?: string;
    //  } | null;
-   created_at?: string;
-   updated_at?: string;
+   created_at?: string | null;
+   updated_at?: string | null;
    deleted_at?: string | null;
 }
 
@@ -229,31 +229,31 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
          label: "Empleado Activo",
       },
    })
-   // .layout({
-   //    mode: "box",
-   //    sections: ["Información Personal", "Información de Empleado"],
-   //    fieldsPerSection: {
-   //       "Información Personal": [
-   //          "avatar",
-   //          "signature_image",
-   //          "name",
-   //          "plast_name",
-   //          "mlast_name",
-   //          "rfc",
-   //          "curp",
-   //          "gender",
-   //          "phone",
-   //          "start_date",
-   //          "end_date",
-   //       ],
-   //       "Información de Empleado": [
-   //          "employee_code",
-   //          "hire_date",
-   //          "department_uuid",
-   //          "position_uuid",
-   //       ],
-   //    },
-   // })
+   .layout({
+      mode: "box",
+      sections: ["Información Personal", "Información de Empleado"],
+      fieldsPerSection: {
+         "Información Personal": [
+            "avatar",
+            "signature_image",
+            "name",
+            "plast_name",
+            "mlast_name",
+            "rfc",
+            "curp",
+            "gender",
+            "phone",
+            "start_date",
+            "end_date",
+         ],
+         "Información de Empleado": [
+            "employee_code",
+            "hire_date",
+            "department_uuid",
+            "position_uuid",
+         ],
+      },
+   })
    .tableHeader({
       title: "Empleados",
       subtitle: "Gestión de empleados",

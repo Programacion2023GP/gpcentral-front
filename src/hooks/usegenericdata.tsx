@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GenericApi } from "../infrastructure/generic/infra.generic";
 import { useStore } from "zustand";
-import { createGenericStore, StoreExtension, StoreLifecycleHooks } from "../store/generic/generic.store";
+import { createGenericStore } from "react-zustore";
+import type { StoreExtension, StoreLifecycleHooks } from "react-zustore";
 
 export interface GenericDataConfig<T extends { id?: number }, E = {}, P extends Record<string, any> = {}, S extends Record<string, any> = {}> {
    initialState: T;

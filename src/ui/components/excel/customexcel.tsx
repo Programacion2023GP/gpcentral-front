@@ -2,7 +2,8 @@
  * react-excel-engine.tsx  — v6 firmas centradas + toolbar normal
  */
 
-import React, { createContext, useState, useCallback, CSSProperties, ReactNode, ReactElement } from "react";
+import React, { createContext, useState, useCallback } from "react";
+import type { CSSProperties, ReactNode, ReactElement } from "react";
 import ExcelJS from "exceljs";
 
 type Align = "left" | "center" | "right";

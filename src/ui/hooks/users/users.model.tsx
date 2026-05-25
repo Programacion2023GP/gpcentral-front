@@ -1,5 +1,4 @@
 // config/users.crud.ts
-import { env } from "../../../constant";
 import { ConfigCrud } from "../../../models/genericmodels.model";
 import { generateUsername } from "../../../utils/helpers";
 import PhotoZoom from "../../components/images/images";
@@ -20,8 +19,8 @@ export interface UserForm {
    //     position?: string;
    //     hire_date?: string;
    //  } | null;
-   created_at?: string;
-   updated_at?: string;
+   created_at?: string | null;
+   updated_at?: string | null;
    deleted_at?: string | null;
 }
 

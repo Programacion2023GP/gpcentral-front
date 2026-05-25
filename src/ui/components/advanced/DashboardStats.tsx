@@ -1,8 +1,7 @@
 // src/ui/components/advanced/DashboardStats.tsx
 import React from "react";
 import { FiUsers, FiUserCheck, FiUserX, FiTrendingUp } from "react-icons/fi";
-// import  from "../../../types/crud-advanced.types";
-import { type DashboardStats as DashboardStatsType } from "./DashboardStats";
+import type { DashboardStats as DashboardStatsType } from "../../../types/crud-advanced.types";
 
 interface DashboardStatsProps<T = any> {
    stats: DashboardStatsType<T>;

@@ -1,6 +1,6 @@
 import SuperCrud from "../../../components/compositecustoms/compositeCrud";
 import { userCrudConfig } from "../../../hooks/users/users.model";
-import useUsersData from "../../../hooks/users/useUsersdata";
+import useUsersData from "../../../hooks/users/useUsersData";
 
 const PageUsers = ({}) => {
    return (

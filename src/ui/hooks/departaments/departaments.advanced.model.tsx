@@ -21,7 +21,7 @@ export interface DepartmentForm {
    description: string;
    status: "active" | "inactive";
    manager_id?: number;
-   created_at?: string;
+   created_at?: string | null;
 }
 
 // 2. Interfaz para la tabla (enriquecida)

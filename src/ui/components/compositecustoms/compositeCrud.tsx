@@ -965,7 +965,6 @@ interface StepperFormLocalProps {
    sections: { title: string; fields: FieldItem[] }[];
    activeStep: number;
    onStepChange: (idx: number) => void;
-   onSave: () => void;
    renderField: (field: FieldItem) => React.ReactNode;
 }
 
@@ -973,10 +972,10 @@ const StepperFormLocal = ({
    sections,
    activeStep,
    onStepChange,
-   onSave,
    renderField,
 }: StepperFormLocalProps) => {
    const currentSection = sections[activeStep];
+   const formik = useFormikContext();
    return (
       <div>
          <div className="flex gap-2 mb-4 border-b">
@@ -1007,7 +1006,7 @@ const StepperFormLocal = ({
             </button>
             {activeStep === sections.length - 1 ? (
                <button
-                  onClick={onSave}
+                  onClick={() => formik.submitForm()}
                   className="px-4 py-2 text-white bg-blue-600 rounded">
                   Guardar
                </button>
@@ -1026,14 +1025,11 @@ const StepperFormLocal = ({
 // ─── BoxFormLocal ──────────────────────────────────────────────────────────────
 interface BoxFormLocalProps {
    sections: { title: string; fields: FieldItem[] }[];
-   onSave: () => void;
    renderField: (field: FieldItem) => React.ReactNode;
 }
 
-const BoxFormLocal = ({ sections, onSave, renderField }: BoxFormLocalProps) => {
-   console.log("🚀 ~ BoxFormLocal ~ onSave:", onSave);
+const BoxFormLocal = ({ sections, renderField }: BoxFormLocalProps) => {
    const formik = useFormikContext();
-   console.log("🚀 ~ BoxFormLocal ~ formik:", formik);
 
    const handleSave = async () => {
       const errors = await formik.validateForm();
@@ -1043,7 +1039,7 @@ const BoxFormLocal = ({ sections, onSave, renderField }: BoxFormLocalProps) => {
          {},
       );
       await formik.setTouched({ ...formik.touched, ...allTouched });
-      if (Object.keys(errors).length === 0) onSave();
+      if (Object.keys(errors).length === 0) formik.submitForm();
    };
 
    return (
@@ -1109,7 +1105,6 @@ interface RenderFormContentProps {
    activeStep: number;
    setActiveStep: (step: number) => void;
    renderField: (field: FieldItem) => React.ReactNode;
-   onSubmit: () => void;
 }
 
 const RenderFormContent = ({
@@ -1118,7 +1113,6 @@ const RenderFormContent = ({
    activeStep,
    setActiveStep,
    renderField,
-   onSubmit,
 }: RenderFormContentProps) => {
    if (!sectioned.hasSections) {
       return <RowComponent>{computedFields.map(renderField)}</RowComponent>;
@@ -1129,7 +1123,6 @@ const RenderFormContent = ({
             sections={sectioned.sections}
             activeStep={activeStep}
             onStepChange={setActiveStep}
-            onSave={onSubmit}
             renderField={renderField}
          />
       );
@@ -1137,7 +1130,6 @@ const RenderFormContent = ({
    return (
       <BoxFormLocal
          sections={sectioned.sections}
-         onSave={onSubmit}
          renderField={renderField}
       />
    );
@@ -2126,20 +2118,15 @@ const SuperCrud = <
                         !sectioned.hasSections ? "Guardar" : undefined
                      }
                      buttonLoading={hook.loading}>
-                     {(formikBag: any) => {
-                        console.log("🚀 ~ SuperCrud ~ formikBag:", formikBag);
-
-                        return (
-                           <RenderFormContent
-                              computedFields={computedFields}
-                              sectioned={sectioned}
-                              activeStep={activeStep}
-                              setActiveStep={setActiveStep}
-                              renderField={renderField}
-                              onSubmit={formikBag.handleSubmit}
-                           />
-                        );
-                     }}
+                      {() => (
+                            <RenderFormContent
+                               computedFields={computedFields}
+                               sectioned={sectioned}
+                               activeStep={activeStep}
+                               setActiveStep={setActiveStep}
+                               renderField={renderField}
+                            />
+                         )}
                   </FormikForm>
                );
             }}

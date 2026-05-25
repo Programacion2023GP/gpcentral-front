@@ -10,7 +10,14 @@ interface TooltipProps {
    maxWidth?: number;
 }
 
-const Tooltip: React.FC<TooltipProps> = ({ children, content, position = "top", delay = 200, className = "", maxWidth = 280 }) => {
+const Tooltip: React.FC<TooltipProps> = ({
+   children,
+   content,
+   position = "top",
+   delay = 200,
+   className = "",
+   maxWidth = 280,
+}) => {
    const [isVisible, setIsVisible] = useState(false);
    const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
    const [showDelayed, setShowDelayed] = useState(false);
@@ -18,7 +25,7 @@ const Tooltip: React.FC<TooltipProps> = ({ children, content, position = "top", 
 
    const triggerRef = useRef<HTMLDivElement>(null);
    const tooltipRef = useRef<HTMLDivElement>(null);
-   const timeoutRef = useRef(null);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
    useEffect(() => {
       if (isVisible) {
@@ -77,25 +84,51 @@ const Tooltip: React.FC<TooltipProps> = ({ children, content, position = "top", 
 
          switch (pos) {
             case "top":
-               tempTop = triggerRect.top + scrollY - tooltipRect.height - spacing;
-               tempLeft = triggerRect.left + scrollX + (triggerRect.width - tooltipRect.width) / 2;
+               tempTop =
+                  triggerRect.top + scrollY - tooltipRect.height - spacing;
+               tempLeft =
+                  triggerRect.left +
+                  scrollX +
+                  (triggerRect.width - tooltipRect.width) / 2;
                break;
             case "bottom":
                tempTop = triggerRect.bottom + scrollY + spacing;
-               tempLeft = triggerRect.left + scrollX + (triggerRect.width - tooltipRect.width) / 2;
+               tempLeft =
+                  triggerRect.left +
+                  scrollX +
+                  (triggerRect.width - tooltipRect.width) / 2;
                break;
             case "left":
-               tempTop = triggerRect.top + scrollY + (triggerRect.height - tooltipRect.height) / 2;
-               tempLeft = triggerRect.left + scrollX - tooltipRect.width - spacing;
+               tempTop =
+                  triggerRect.top +
+                  scrollY +
+                  (triggerRect.height - tooltipRect.height) / 2;
+               tempLeft =
+                  triggerRect.left + scrollX - tooltipRect.width - spacing;
                break;
             case "right":
-               tempTop = triggerRect.top + scrollY + (triggerRect.height - tooltipRect.height) / 2;
+               tempTop =
+                  triggerRect.top +
+                  scrollY +
+                  (triggerRect.height - tooltipRect.height) / 2;
                tempLeft = triggerRect.right + scrollX + spacing;
                break;
          }
 
          // Check if position is valid (not covering the trigger and within viewport)
-         if (isPositionValid(tempTop, tempLeft, tooltipRect, triggerRect, scrollX, scrollY, viewportWidth, viewportHeight, viewportPadding)) {
+         if (
+            isPositionValid(
+               tempTop,
+               tempLeft,
+               tooltipRect,
+               triggerRect,
+               scrollX,
+               scrollY,
+               viewportWidth,
+               viewportHeight,
+               viewportPadding,
+            )
+         ) {
             top = tempTop;
             left = tempLeft;
             finalPosition = pos as "top" | "bottom" | "left" | "right";
@@ -109,20 +142,41 @@ const Tooltip: React.FC<TooltipProps> = ({ children, content, position = "top", 
          switch (position) {
             case "top":
                top = triggerRect.top + scrollY - tooltipRect.height - spacing;
-               left = triggerRect.left + scrollX + (triggerRect.width - tooltipRect.width) / 2;
+               left =
+                  triggerRect.left +
+                  scrollX +
+                  (triggerRect.width - tooltipRect.width) / 2;
                break;
             case "bottom":
                top = triggerRect.bottom + scrollY + spacing;
-               left = triggerRect.left + scrollX + (triggerRect.width - tooltipRect.width) / 2;
+               left =
+                  triggerRect.left +
+                  scrollX +
+                  (triggerRect.width - tooltipRect.width) / 2;
                break;
             default:
                top = triggerRect.bottom + scrollY + spacing;
-               left = triggerRect.left + scrollX + (triggerRect.width - tooltipRect.width) / 2;
+               left =
+                  triggerRect.left +
+                  scrollX +
+                  (triggerRect.width - tooltipRect.width) / 2;
          }
 
          // Apply viewport boundaries
-         left = Math.max(scrollX + viewportPadding, Math.min(left, scrollX + viewportWidth - tooltipRect.width - viewportPadding));
-         top = Math.max(scrollY + viewportPadding, Math.min(top, scrollY + viewportHeight - tooltipRect.height - viewportPadding));
+         left = Math.max(
+            scrollX + viewportPadding,
+            Math.min(
+               left,
+               scrollX + viewportWidth - tooltipRect.width - viewportPadding,
+            ),
+         );
+         top = Math.max(
+            scrollY + viewportPadding,
+            Math.min(
+               top,
+               scrollY + viewportHeight - tooltipRect.height - viewportPadding,
+            ),
+         );
       }
 
       setTooltipPosition({ top, left });
@@ -138,11 +192,19 @@ const Tooltip: React.FC<TooltipProps> = ({ children, content, position = "top", 
       scrollY: number,
       viewportWidth: number,
       viewportHeight: number,
-      padding: number
+      padding: number,
    ) => {
       // Check viewport boundaries
-      if (left < scrollX + padding || left + tooltipRect.width > scrollX + viewportWidth - padding) return false;
-      if (top < scrollY + padding || top + tooltipRect.height > scrollY + viewportHeight - padding) return false;
+      if (
+         left < scrollX + padding ||
+         left + tooltipRect.width > scrollX + viewportWidth - padding
+      )
+         return false;
+      if (
+         top < scrollY + padding ||
+         top + tooltipRect.height > scrollY + viewportHeight - padding
+      )
+         return false;
 
       // Check if tooltip covers the trigger (we don't want that!)
       const tooltipRight = left + tooltipRect.width;
@@ -156,8 +218,12 @@ const Tooltip: React.FC<TooltipProps> = ({ children, content, position = "top", 
       if (left < triggerRight && tooltipRight > triggerRect.left + scrollX) {
          if (top < triggerBottom && tooltipBottom > triggerRect.top + scrollY) {
             // They overlap, check if it's too much
-            const overlapWidth = Math.min(triggerRight, tooltipRight) - Math.max(triggerRect.left + scrollX, left);
-            const overlapHeight = Math.min(triggerBottom, tooltipBottom) - Math.max(triggerRect.top + scrollY, top);
+            const overlapWidth =
+               Math.min(triggerRight, tooltipRight) -
+               Math.max(triggerRect.left + scrollX, left);
+            const overlapHeight =
+               Math.min(triggerBottom, tooltipBottom) -
+               Math.max(triggerRect.top + scrollY, top);
 
             if (overlapWidth > minOverlap && overlapHeight > minOverlap) {
                return false; // Too much overlap
@@ -183,7 +249,8 @@ const Tooltip: React.FC<TooltipProps> = ({ children, content, position = "top", 
 
    // Tooltip arrow styles based on calculated position
    const getArrowStyles = () => {
-      const baseClasses = "absolute w-2 h-2 bg-gray-900 border-gray-700 rotate-45";
+      const baseClasses =
+         "absolute w-2 h-2 bg-gray-900 border-gray-700 rotate-45";
 
       switch (calculatedPosition) {
          case "top":
@@ -206,8 +273,7 @@ const Tooltip: React.FC<TooltipProps> = ({ children, content, position = "top", 
          onMouseEnter={handleMouseEnter}
          onMouseLeave={handleMouseLeave}
          onFocus={handleMouseEnter}
-         onBlur={handleMouseLeave}
-      >
+         onBlur={handleMouseLeave}>
          {children}
 
          {showDelayed &&
@@ -220,25 +286,14 @@ const Tooltip: React.FC<TooltipProps> = ({ children, content, position = "top", 
                      top: tooltipPosition.top,
                      left: tooltipPosition.left,
                      zIndex: 9999,
-                     maxWidth: `${maxWidth}px`
+                     maxWidth: `${maxWidth}px`,
                   }}
-                  className="
-              px-3 py-2
-              text-sm leading-relaxed text-white
-              bg-gray-900 backdrop-blur-sm bg-opacity-95
-              rounded-lg shadow-xl
-              break-words whitespace-pre-wrap
-              animate-in fade-in zoom-in-95 duration-150
-              border border-gray-700
-              pointer-events-none
-              font-medium
-            "
-               >
+                  className="px-3 py-2 text-sm font-medium leading-relaxed text-white break-words whitespace-pre-wrap duration-150 bg-gray-900 border border-gray-700 rounded-lg shadow-xl pointer-events-none  backdrop-blur-sm bg-opacity-95 animate-in fade-in zoom-in-95">
                   {content}
                   {/* Elegant arrow */}
                   <div className={getArrowStyles()} />
                </div>,
-               document.body
+               document.body,
             )}
       </div>
    );

@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from "react";
 // import { ApiUsers } from "../../../infrastructure/infrastructureusers/inftrastructureusers";
 import { ChevronDown, LogOut, Menu, X } from "lucide-react";
 import type { UserTableRow } from "../../hooks/users/users.model";
-import useUsersData from "../../hooks/users/useUsersdata";
+import useUsersData from "../../hooks/users/useUsersData";
+import { env } from "../../../constant";
 
 interface HeaderProps {
    // authUser?: UserTableRow;
@@ -13,12 +14,12 @@ interface HeaderProps {
 }
 
 export const Header = ({ setOpenSidebar, isSidebarOpen }: HeaderProps) => {
-   const authUser: UserTableRow = useUsersData().persist;
+   const authUser: Partial<UserTableRow> = useUsersData().persist ?? {};
    const [dropdownOpen, setDropdownOpen] = useState(false);
    const [notifOpen, setNotifOpen] = useState(false);
    const [scrolled, setScrolled] = useState(false);
-   const dropdownRef = useRef(null);
-   const notifRef = useRef(null);
+   const dropdownRef = useRef<HTMLDivElement>(null);
+   const notifRef = useRef<HTMLDivElement>(null);
    // const {logout} = useUsersState()
    // const api = new ApiUsers()
    useEffect(() => {
@@ -28,10 +29,11 @@ export const Header = ({ setOpenSidebar, isSidebarOpen }: HeaderProps) => {
    }, []);
 
    useEffect(() => {
-      const handleClick = (e) => {
-         if (dropdownRef.current && !dropdownRef.current.contains(e.target))
+      const handleClick = (e: MouseEvent) => {
+         const target = e.target as Node;
+         if (dropdownRef.current && !dropdownRef.current.contains(target))
             setDropdownOpen(false);
-         if (notifRef.current && !notifRef.current.contains(e.target))
+         if (notifRef.current && !notifRef.current.contains(target))
             setNotifOpen(false);
       };
       document.addEventListener("mousedown", handleClick);
@@ -107,7 +109,9 @@ export const Header = ({ setOpenSidebar, isSidebarOpen }: HeaderProps) => {
                      marginRight: "4px",
                   }}
                />
-               <div></div>
+               <div className="text-white">
+                  <b>{env.NAME_SYSTEM}</b> | <small>v{env.VERSION}</small>
+               </div>
             </div>
          </div>
 
