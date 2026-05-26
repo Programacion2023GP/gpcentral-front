@@ -31,6 +31,9 @@ import { env } from "./constant";
 
 // Lazy imports para todas las páginas
 
+const PageAdministrations = lazy(
+   () => import("./ui/pages/catalogues/administrations/PageAdministrations"),
+);
 const PageOrganizations = lazy(
    () => import("./ui/pages/catalogues/organizations/PageOrganizations"),
 );
@@ -168,6 +171,13 @@ const MainLayout = () => {
             "Catálogos",
             <FaBuildingColumns />,
             [
+               createRouteItem(
+                  69,
+                  "catalogo_administraciones_",
+                  "/catalogos/administraciones",
+                  <icons.Ri.RiGovernmentFill />,
+                  "Administraciones",
+               ),
                createRouteItem(
                   70,
                   "catalogo_organizaciones_",
@@ -361,6 +371,14 @@ function App() {
                // </ProtectedRoute>
             }>
             <Route path="catalogos">
+               <Route
+                  path="administraciones"
+                  element={
+                     <Suspense fallback={<Spinner />}>
+                        <PageAdministrations />
+                     </Suspense>
+                  }
+               />
                <Route
                   path="organizaciones"
                   element={
