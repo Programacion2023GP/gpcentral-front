@@ -1,7 +1,7 @@
 // hooks/useEmployeesData.ts
 import { useMemo } from "react";
-import { useGenericData, type GenericDataReturn } from "react-zustore";
 import type { EmployeeForm } from "./employees.model";
+import { GenericDataReturn, useGenericData } from "../../../library/reactztore/hook/usegenericdata";
 
 // ✅ Exportado — necesario para SuperCrud<Employees> en la page
 
@@ -48,7 +48,7 @@ const useEmployeesData = (): EmployeesDataReturn => {
    );
 
    return useGenericData<EmployeeForm>({
-      defaultValues: initialState,
+      initialState: initialState,
       prefix: "employees",
       autoFetch: true,
       // persistKey: "employee-persist",

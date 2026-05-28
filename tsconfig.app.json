@@ -13,18 +13,18 @@
     "allowImportingTsExtensions": true,
     "moduleDetection": "force",
     "resolveJsonModule": true,
-      "isolatedModules": true,
-      "noEmit": true,
+    "isolatedModules": true,
+    "noEmit": true,
     "jsx": "react-jsx",
 
     /* Linting */
-      "strict": false,
+    "strict": false,
     "verbatimModuleSyntax": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "erasableSyntaxOnly": true,
-      "noImplicitAny": false,
-      "exactOptionalPropertyTypes": false,
+    "noImplicitAny": false,
+    "exactOptionalPropertyTypes": false,
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"]

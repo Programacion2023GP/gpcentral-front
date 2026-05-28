@@ -1,7 +1,7 @@
 // hooks/useDepartmentsData.ts
 import { useMemo } from "react";
-import { useGenericData, type GenericDataReturn } from "react-zustore";
 import type { PositionForm } from "./positions.model";
+import { GenericDataReturn, useGenericData } from "../../../library/reactztore/hook/usegenericdata";
 
 // ✅ Exportado — necesario para SuperCrud<Positions> en la page
 
@@ -24,7 +24,7 @@ const usePositionsData = (): PositionsDataReturn => {
    );
 
    return useGenericData<PositionForm>({
-      defaultValues: initialState,
+      initialState: initialState,
       prefix: "positions",
       autoFetch: true,
       // persistKey: "position-persist",

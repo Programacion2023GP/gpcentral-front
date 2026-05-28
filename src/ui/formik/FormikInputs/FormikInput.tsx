@@ -1,65 +1,29 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { useFormikContext } from "formik";
+import { getIn, useFormikContext } from "formik";
 import { motion, AnimatePresence } from "framer-motion";
 import { IoIosEyeOff, IoMdEye } from "react-icons/io";
 import { FaMinus, FaPlus } from "react-icons/fa";
 import { AiOutlineCamera, AiOutlineClose } from "react-icons/ai";
+import { createPortal } from "react-dom";
+import Select from "react-select";
 import { ColComponent } from "../../components/responsive/Responsive";
+import { theme } from "../../../config/themes";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { es } from "date-fns/locale";
+import { NumericFormat } from "react-number-format";
 
-/* ------------------------------------------------------------------
-   DESIGN SYSTEM
------------------------------------------------------------------- */
-const DS = {
-   bg: "#FAFAF9",
-   white: "#FFFFFF",
-   surface: "#F5F4F1",
-   surfaceHover: "#EFEDE8",
-   border: "#D6D3CC",
-   borderHover: "#A8A39A",
-   borderFocus: "#2D2A26",
-   borderError: "#C0392B",
-   text1: "#1C1A17",
-   text2: "#6B6560",
-   text3: "#A8A39A",
-   textPlaceholder: "#B8B3AA",
-   accent: "#3730A3",
-   accentLight: "rgba(55,48,163,0.08)",
-   accentMid: "rgba(55,48,163,0.16)",
-   accentGlow: "0 0 0 3px rgba(55,48,163,0.12)",
-   errorBg: "#FEF2F2",
-   errorBorder: "#FCA5A5",
-   errorText: "#DC2626",
-   successBg: "#F0FDF4",
-   successText: "#16A34A",
-   r3: "4px",
-   r6: "8px",
-   r8: "10px",
-   r10: "12px",
-   r12: "14px",
-   shadowSm: "0 1px 2px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.08)",
-   shadowMd: "0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05)",
-   shadowLg: "0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06)",
-   shadowDropdown: "0 12px 40px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.07)",
-   transition: "all 0.18s cubic-bezier(0.4,0,0.2,1)",
-};
-
-/* ------------------------------------------------------------------
-   TIPOS COMPARTIDOS
------------------------------------------------------------------- */
+// import { theme } from "../../../styles/theme";
+// ------------------------------------------------------------------
+// TIPOS COMPARTIDOS
+// ------------------------------------------------------------------
 export type HandleModifiedFn = (
    values: Record<string, any>,
    setFieldValue: (name: string, value: any) => void,
 ) => void | Promise<void>;
 
-/**
- * Cómo transformar el case del valor al escribir.
- * - "uppercase"  → fuerza MAYÚSCULAS
- * - "lowercase"  → fuerza minúsculas
- * - "none"       → respeta lo que escribe el usuario (default)
- */
 export type CaseTransform = "uppercase" | "lowercase" | "none";
 
-/** Contexto de Formik que se pasa a los callbacks onChange / onInput */
 export type FormikCtx = ReturnType<
    typeof useFormikContext<Record<string, any>>
 >;
@@ -72,9 +36,16 @@ type ResponsiveProps = {
    "2xl"?: number;
 };
 
-/* ------------------------------------------------------------------
-   HELPER: aplica la transformación de case
------------------------------------------------------------------- */
+type TreeNode<T> = T & { children_recursive?: TreeNode<T>[] };
+
+interface Option {
+   value: string | number;
+   label: string;
+}
+
+// ------------------------------------------------------------------
+// HELPER: transformación de case
+// ------------------------------------------------------------------
 function applyCase(
    value: string,
    caseTransform: CaseTransform = "none",
@@ -84,9 +55,9 @@ function applyCase(
    return value;
 }
 
-/* ------------------------------------------------------------------
-   COMPONENTES INTERNOS REUTILIZABLES
------------------------------------------------------------------- */
+// ------------------------------------------------------------------
+// COMPONENTES INTERNOS REUTILIZABLES
+// ------------------------------------------------------------------
 const FieldError = ({ error }: { error: string | null }) =>
    error ? (
       <motion.div
@@ -100,20 +71,24 @@ const FieldError = ({ error }: { error: string | null }) =>
             gap: "6px",
             marginTop: "6px",
             padding: "6px 10px",
-            background: DS.errorBg,
-            border: `1px solid ${DS.errorBorder}`,
-            borderRadius: DS.r6,
+            background: theme.colors.feedback.errorLight,
+            border: `1px solid ${theme.colors.feedback.errorBorder}`,
+            borderRadius: theme.radius.md,
          }}>
          <div
             style={{
                width: 5,
                height: 5,
                borderRadius: "50%",
-               background: DS.errorText,
+               background: theme.colors.status.error,
             }}
          />
          <span
-            style={{ fontSize: "12px", fontWeight: 500, color: DS.errorText }}>
+            style={{
+               fontSize: theme.typography.fontSize.sm,
+               fontWeight: 500,
+               color: theme.colors.status.error,
+            }}>
             {error}
          </span>
       </motion.div>
@@ -143,8 +118,8 @@ const DisabledField = ({
                top: "-9px",
                fontSize: "11px",
                fontWeight: 600,
-               color: DS.text3,
-               background: DS.surface,
+               color: theme.colors.text.disabled,
+               background: theme.colors.background.surface,
                padding: "0 4px",
                letterSpacing: "0.04em",
                textTransform: "uppercase",
@@ -154,16 +129,16 @@ const DisabledField = ({
          </label>
          <div
             style={{
-               border: `1.5px solid ${DS.border}`,
-               borderRadius: DS.r8,
-               background: DS.surface,
+               border: `1.5px solid ${theme.colors.border.DEFAULT}`,
+               borderRadius: theme.radius.md,
+               background: theme.colors.background.surface,
                padding: multiline ? "16px 12px 10px" : "13px 12px",
                minHeight: multiline ? "80px" : "50px",
             }}>
             <span
                style={{
-                  fontSize: "14px",
-                  color: DS.text2,
+                  fontSize: theme.typography.fontSize.base,
+                  color: theme.colors.text.secondary,
                   whiteSpace: multiline ? "pre-wrap" : "normal",
                }}>
                {value ?? "—"}
@@ -174,9 +149,9 @@ const DisabledField = ({
    </ColComponent>
 );
 
-/* ------------------------------------------------------------------
-   FORMIK INPUT
------------------------------------------------------------------- */
+// ------------------------------------------------------------------
+// FORMIK INPUT
+// ------------------------------------------------------------------
 interface FormikInputProps {
    name: string;
    label: string;
@@ -201,14 +176,9 @@ interface FormikInputProps {
    rightIcon?: React.ReactNode;
    onRightIconClick?: () => void;
    onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
-   // ── Nuevos ──────────────────────────────────────────────────────
-   /** Transforma el case al vuelo. Default: "none" (respeta lo que escribe el usuario) */
    caseTransform?: CaseTransform;
-   /** Se llama en cada pulsación de tecla ANTES de commitear a Formik */
    onInput?: (value: string, formik: FormikCtx) => void;
-   /** Se llama cuando el valor ya fue commiteado a Formik */
    onChange?: (value: string, formik: FormikCtx) => void;
-   // ────────────────────────────────────────────────────────────────
    handleModified?: HandleModifiedFn;
    responsive?: ResponsiveProps;
    padding?: boolean;
@@ -258,18 +228,14 @@ export function FormikInput(props: FormikInputProps) {
 
    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value;
-      // Aplica máscara si existe, luego transforma el case
       let processed = mask ? mask(raw) : raw;
       processed = applyCase(processed, caseTransform);
 
       setLocalValue(processed);
-
-      // onInput: dispara inmediatamente con el valor procesado
       onInput?.(processed, formik);
 
       const updateField = () => {
          formik.setFieldValue(name, processed);
-         // onChange: dispara después de commitear a Formik
          onChange?.(processed, formik);
          if (handleModified) {
             handleModified(
@@ -317,26 +283,32 @@ export function FormikInput(props: FormikInputProps) {
                   position: "absolute",
                   left: "12px",
                   top: isActive ? "-9px" : "14px",
-                  fontSize: isActive ? "11px" : "14px",
+                  fontSize: isActive ? "11px" : theme.typography.fontSize.base,
                   fontWeight: isActive ? 600 : 400,
                   color: isActive
                      ? error
-                        ? DS.errorText
+                        ? theme.colors.status.error
                         : isFocused
-                          ? DS.accent
-                          : DS.text2
-                     : DS.textPlaceholder,
-                  background: DS.white,
+                          ? theme.colors.primary.DEFAULT
+                          : theme.colors.text.secondary
+                     : theme.colors.text.placeholder,
+                  background: theme.colors.background.card,
                   padding: "0 4px",
                   pointerEvents: "none",
-                  transition: DS.transition,
+                  transition: theme.transitions.DEFAULT,
                   letterSpacing: isActive ? "0.04em" : "0",
                   textTransform: isActive ? "uppercase" : "none",
                   zIndex: 2,
                }}>
                {label}
                {required && (
-                  <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>
+                  <span
+                     style={{
+                        color: theme.colors.status.error,
+                        marginLeft: 2,
+                     }}>
+                     *
+                  </span>
                )}
             </label>
 
@@ -344,15 +316,21 @@ export function FormikInput(props: FormikInputProps) {
                style={{
                   display: "flex",
                   alignItems: "center",
-                  border: `1.5px solid ${error ? DS.borderError : isFocused ? DS.borderFocus : DS.border}`,
-                  borderRadius: DS.r8,
-                  background: DS.white,
+                  border: `1.5px solid ${
+                     error
+                        ? theme.colors.border.error
+                        : isFocused
+                          ? theme.colors.border.focus
+                          : theme.colors.border.DEFAULT
+                  }`,
+                  borderRadius: theme.radius.md,
+                  background: theme.colors.background.card,
                   boxShadow: isFocused
                      ? error
-                        ? "0 0 0 3px rgba(220,38,38,0.10)"
-                        : DS.accentGlow
+                        ? theme.colors.feedback.errorGlow
+                        : theme.colors.feedback.primaryGlow
                      : "none",
-                  transition: DS.transition,
+                  transition: theme.transitions.DEFAULT,
                }}>
                {leftIcon && <span style={{ marginLeft: 12 }}>{leftIcon}</span>}
                <input
@@ -369,12 +347,14 @@ export function FormikInput(props: FormikInputProps) {
                   autoComplete={autoComplete}
                   style={{
                      flex: 1,
-                     padding: `20px ${rightIcon ? "8px" : "12px"} 8px ${leftIcon ? "8px" : "12px"}`,
+                     padding: `20px ${rightIcon ? "8px" : "12px"} 8px ${
+                        leftIcon ? "8px" : "12px"
+                     }`,
                      background: "transparent",
                      border: "none",
                      outline: "none",
-                     fontSize: "14px",
-                     color: DS.text1,
+                     fontSize: theme.typography.fontSize.base,
+                     color: theme.colors.text.primary,
                      fontFamily: "inherit",
                   }}
                />
@@ -387,7 +367,7 @@ export function FormikInput(props: FormikInputProps) {
                         background: "none",
                         border: "none",
                         cursor: "pointer",
-                        color: DS.text3,
+                        color: theme.colors.text.placeholder,
                      }}>
                      {rightIcon}
                   </button>
@@ -399,9 +379,9 @@ export function FormikInput(props: FormikInputProps) {
    );
 }
 
-/* ------------------------------------------------------------------
-   FORMIK TEXTAREA
------------------------------------------------------------------- */
+// ------------------------------------------------------------------
+// FORMIK TEXTAREA
+// ------------------------------------------------------------------
 interface FormikTextAreaProps {
    name: string;
    label: string;
@@ -411,11 +391,9 @@ interface FormikTextAreaProps {
    required?: boolean;
    placeholder?: string;
    debounceMs?: number;
-   // ── Nuevos ──────────────────────────────────────────────────────
    caseTransform?: CaseTransform;
    onInput?: (value: string, formik: FormikCtx) => void;
    onChange?: (value: string, formik: FormikCtx) => void;
-   // ────────────────────────────────────────────────────────────────
    responsive?: ResponsiveProps;
    padding?: boolean;
 }
@@ -456,7 +434,6 @@ export function FormikTextArea(props: FormikTextAreaProps) {
 
    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const processed = applyCase(e.target.value, caseTransform);
-
       setLocalValue(processed);
       onInput?.(processed, formik);
 
@@ -498,11 +475,11 @@ export function FormikTextArea(props: FormikTextAreaProps) {
                   borderRadius: "14px",
                   padding: "1.5px",
                   background: error
-                     ? `linear-gradient(135deg, ${DS.errorText}, #ff8a80)`
+                     ? `linear-gradient(135deg, ${theme.colors.status.error}, #ff8a80)`
                      : isFocused
-                       ? `linear-gradient(135deg, ${DS.accent}, #7c3aed, #06b6d4)`
-                       : `linear-gradient(135deg, ${DS.border}, ${DS.border})`,
-                  transition: DS.transition,
+                       ? `linear-gradient(135deg, ${theme.colors.primary.DEFAULT}, #7c3aed, #06b6d4)`
+                       : `linear-gradient(135deg, ${theme.colors.border.DEFAULT}, ${theme.colors.border.DEFAULT})`,
+                  transition: theme.transitions.DEFAULT,
                   boxShadow: isFocused
                      ? error
                         ? "0 4px 20px rgba(220,38,38,0.18)"
@@ -512,7 +489,7 @@ export function FormikTextArea(props: FormikTextAreaProps) {
                <div
                   style={{
                      borderRadius: "13px",
-                     background: DS.white,
+                     background: theme.colors.background.card,
                      overflow: "hidden",
                   }}>
                   <label
@@ -524,15 +501,17 @@ export function FormikTextArea(props: FormikTextAreaProps) {
                         transform: isActive
                            ? "translateY(0)"
                            : "translateY(-50%)",
-                        fontSize: isActive ? "10px" : "14px",
+                        fontSize: isActive
+                           ? "10px"
+                           : theme.typography.fontSize.base,
                         fontWeight: isActive ? 700 : 400,
                         color: error
-                           ? DS.errorText
+                           ? theme.colors.status.error
                            : isFocused
-                             ? DS.accent
+                             ? theme.colors.primary.DEFAULT
                              : isActive
-                               ? DS.text2
-                               : DS.textPlaceholder,
+                               ? theme.colors.text.secondary
+                               : theme.colors.text.placeholder,
                         letterSpacing: isActive ? "0.07em" : "0",
                         textTransform: isActive ? "uppercase" : "none",
                         pointerEvents: "none",
@@ -541,7 +520,11 @@ export function FormikTextArea(props: FormikTextAreaProps) {
                      }}>
                      {label}
                      {required && (
-                        <span style={{ color: DS.errorText, marginLeft: 2 }}>
+                        <span
+                           style={{
+                              color: theme.colors.status.error,
+                              marginLeft: 2,
+                           }}>
                            *
                         </span>
                      )}
@@ -562,11 +545,13 @@ export function FormikTextArea(props: FormikTextAreaProps) {
                         border: "none",
                         outline: "none",
                         resize: "none",
-                        fontSize: "14px",
+                        fontSize: theme.typography.fontSize.base,
                         lineHeight: "1.6",
-                        color: DS.text1,
+                        color: theme.colors.text.primary,
                         fontFamily: "inherit",
-                        caretColor: error ? DS.errorText : DS.accent,
+                        caretColor: error
+                           ? theme.colors.status.error
+                           : theme.colors.primary.DEFAULT,
                      }}
                   />
                </div>
@@ -581,8 +566,10 @@ export function FormikTextArea(props: FormikTextAreaProps) {
                {hasValue && (
                   <span
                      style={{
-                        fontSize: "11px",
-                        color: isFocused ? DS.accent : DS.text3,
+                        fontSize: theme.typography.fontSize.xs,
+                        color: isFocused
+                           ? theme.colors.primary.DEFAULT
+                           : theme.colors.text.disabled,
                      }}>
                      {localValue.length} caracteres
                   </span>
@@ -593,9 +580,9 @@ export function FormikTextArea(props: FormikTextAreaProps) {
    );
 }
 
-/* ------------------------------------------------------------------
-   FORMIK PASSWORD
------------------------------------------------------------------- */
+// ------------------------------------------------------------------
+// FORMIK PASSWORD
+// ------------------------------------------------------------------
 interface FormikPasswordProps {
    name: string;
    label: string;
@@ -646,36 +633,50 @@ export function FormikPassword(props: FormikPasswordProps) {
                   position: "absolute",
                   left: "12px",
                   top: isActive ? "-9px" : "14px",
-                  fontSize: isActive ? "11px" : "14px",
+                  fontSize: isActive ? "11px" : theme.typography.fontSize.base,
                   fontWeight: isActive ? 600 : 400,
                   color: isActive
                      ? error
-                        ? DS.errorText
+                        ? theme.colors.status.error
                         : isFocused
-                          ? DS.accent
-                          : DS.text2
-                     : DS.textPlaceholder,
-                  background: DS.white,
+                          ? theme.colors.primary.DEFAULT
+                          : theme.colors.text.secondary
+                     : theme.colors.text.placeholder,
+                  background: theme.colors.background.card,
                   padding: "0 4px",
-                  transition: DS.transition,
+                  transition: theme.transitions.DEFAULT,
                   letterSpacing: isActive ? "0.04em" : "0",
                   textTransform: isActive ? "uppercase" : "none",
                   zIndex: 2,
                }}>
                {label}
                {required && (
-                  <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>
+                  <span
+                     style={{
+                        color: theme.colors.status.error,
+                        marginLeft: 2,
+                     }}>
+                     *
+                  </span>
                )}
             </label>
             <div
                style={{
                   display: "flex",
                   alignItems: "center",
-                  border: `1.5px solid ${error ? DS.borderError : isFocused ? DS.borderFocus : DS.border}`,
-                  borderRadius: DS.r8,
-                  background: DS.white,
-                  boxShadow: isFocused ? DS.accentGlow : "none",
-                  transition: DS.transition,
+                  border: `1.5px solid ${
+                     error
+                        ? theme.colors.border.error
+                        : isFocused
+                          ? theme.colors.border.focus
+                          : theme.colors.border.DEFAULT
+                  }`,
+                  borderRadius: theme.radius.md,
+                  background: theme.colors.background.card,
+                  boxShadow: isFocused
+                     ? theme.colors.feedback.primaryGlow
+                     : "none",
+                  transition: theme.transitions.DEFAULT,
                }}>
                <input
                   type={showPassword ? "text" : "password"}
@@ -693,8 +694,8 @@ export function FormikPassword(props: FormikPasswordProps) {
                      background: "transparent",
                      border: "none",
                      outline: "none",
-                     fontSize: "14px",
-                     color: DS.text1,
+                     fontSize: theme.typography.fontSize.base,
+                     color: theme.colors.text.primary,
                   }}
                />
                <button
@@ -705,7 +706,7 @@ export function FormikPassword(props: FormikPasswordProps) {
                      background: "none",
                      border: "none",
                      cursor: "pointer",
-                     color: DS.text3,
+                     color: theme.colors.text.placeholder,
                   }}>
                   {showPassword ? (
                      <IoMdEye size={18} />
@@ -720,9 +721,9 @@ export function FormikPassword(props: FormikPasswordProps) {
    );
 }
 
-/* ------------------------------------------------------------------
-   FORMIK NUMBER
------------------------------------------------------------------- */
+// ------------------------------------------------------------------
+// FORMIK NUMBER
+// ------------------------------------------------------------------
 interface FormikNumberProps {
    name: string;
    label: string;
@@ -733,9 +734,7 @@ interface FormikNumberProps {
    romanNumerals?: boolean;
    disabled?: boolean;
    required?: boolean;
-   // ── Nuevos ──────────────────────────────────────────────────────
    onChange?: (value: number, formik: FormikCtx) => void;
-   // ────────────────────────────────────────────────────────────────
    responsive?: ResponsiveProps;
    padding?: boolean;
 }
@@ -758,12 +757,16 @@ export function FormikNumber(props: FormikNumberProps) {
 
    const formik = useFormikContext<Record<string, any>>();
    const [isFocused, setIsFocused] = useState(false);
+   const [inputValue, setInputValue] = useState<string>("");
+
    const value = (formik.values?.[name] as number) ?? 0;
+
    const error =
       formik.touched[name] && formik.errors[name]
          ? String(formik.errors[name])
          : null;
 
+   // Conversión a números romanos
    const toRoman = (num: number): string => {
       const map: [string, number][] = [
          ["M", 1000],
@@ -781,25 +784,75 @@ export function FormikNumber(props: FormikNumberProps) {
          ["I", 1],
       ];
       let roman = "";
+      let n = num;
       for (const [letter, val] of map) {
-         while (num >= val) {
+         while (n >= val) {
             roman += letter;
-            num -= val;
+            n -= val;
          }
       }
       return roman;
    };
 
+   // Formateo para mostrar
    const formatDisplay = (num: number) => {
       if (romanNumerals) return toRoman(num);
       return decimals ? num.toFixed(2) : Math.floor(num).toString();
    };
 
+   // Actualiza el valor real (Formik + clamp)
    const setValue = (newVal: number) => {
       const clamped = Math.min(max, Math.max(min, newVal));
       formik.setFieldValue(name, clamped);
       onChange?.(clamped, formik);
+      // Sincronizar el inputValue con el nuevo valor formateado
+      if (!romanNumerals) {
+         setInputValue(formatDisplay(clamped));
+      }
    };
+
+   // Manejo del cambio de texto en el input (solo si no es romano)
+   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (romanNumerals) return;
+      const raw = e.target.value;
+      setInputValue(raw);
+   };
+
+   // Al perder foco, parsear el texto a número
+   const handleBlur = () => {
+      setIsFocused(false);
+      formik.setFieldTouched(name, true);
+
+      if (romanNumerals) {
+         // En modo romano no se edita, solo se marca touched
+         return;
+      }
+
+      let parsed = parseFloat(inputValue);
+      if (isNaN(parsed)) {
+         parsed = min;
+      }
+      // Si decimals es false, redondeamos a entero
+      if (!decimals) {
+         parsed = Math.floor(parsed);
+      }
+      setValue(parsed);
+   };
+
+   // Cuando el valor externo (value) cambia, actualizar inputValue si no está enfocado
+   // para mantener sincronía
+   React.useEffect(() => {
+      if (!isFocused && !romanNumerals) {
+         setInputValue(formatDisplay(value));
+      }
+   }, [value, isFocused, romanNumerals, decimals]);
+
+   // Inicializar inputValue
+   React.useEffect(() => {
+      if (!romanNumerals) {
+         setInputValue(formatDisplay(value));
+      }
+   }, []);
 
    if (disabled) {
       return (
@@ -813,6 +866,9 @@ export function FormikNumber(props: FormikNumberProps) {
       );
    }
 
+   // Mostramos el valor formateado (romano) o el texto editable
+   const displayValue = romanNumerals ? formatDisplay(value) : inputValue;
+
    return (
       <ColComponent responsive={responsive} autoPadding={padding}>
          <div style={{ position: "relative", marginBottom: "20px" }}>
@@ -824,11 +880,11 @@ export function FormikNumber(props: FormikNumberProps) {
                   fontSize: "11px",
                   fontWeight: 600,
                   color: error
-                     ? DS.errorText
+                     ? theme.colors.status.error
                      : isFocused
-                       ? DS.accent
-                       : DS.text2,
-                  background: DS.white,
+                       ? theme.colors.primary.DEFAULT
+                       : theme.colors.text.secondary,
+                  background: theme.colors.background.card,
                   padding: "0 4px",
                   letterSpacing: "0.04em",
                   textTransform: "uppercase",
@@ -836,16 +892,26 @@ export function FormikNumber(props: FormikNumberProps) {
                }}>
                {label}
                {required && (
-                  <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>
+                  <span
+                     style={{
+                        color: theme.colors.status.error,
+                        marginLeft: 2,
+                     }}>
+                     *
+                  </span>
                )}
             </label>
             <div
                style={{
                   display: "flex",
                   alignItems: "center",
-                  border: `1.5px solid ${error ? DS.borderError : DS.border}`,
-                  borderRadius: DS.r8,
-                  background: DS.white,
+                  border: `1.5px solid ${
+                     error
+                        ? theme.colors.border.error
+                        : theme.colors.border.DEFAULT
+                  }`,
+                  borderRadius: theme.radius.md,
+                  background: theme.colors.background.card,
                   overflow: "hidden",
                }}>
                <button
@@ -857,22 +923,20 @@ export function FormikNumber(props: FormikNumberProps) {
                      display: "flex",
                      alignItems: "center",
                      justifyContent: "center",
-                     background: DS.surface,
+                     background: theme.colors.background.surface,
                      border: "none",
-                     borderRight: `1px solid ${DS.border}`,
+                     borderRight: `1px solid ${theme.colors.border.DEFAULT}`,
                      cursor: "pointer",
                   }}>
                   <FaMinus size={10} />
                </button>
                <input
                   type="text"
-                  value={formatDisplay(value)}
+                  value={displayValue}
                   onFocus={() => setIsFocused(true)}
-                  onBlur={() => {
-                     setIsFocused(false);
-                     formik.setFieldTouched(name, true);
-                  }}
-                  readOnly
+                  onBlur={handleBlur}
+                  onChange={handleTextChange}
+                  readOnly={romanNumerals} // Si es romano, no editable
                   style={{
                      flex: 1,
                      padding: "10px 8px",
@@ -880,9 +944,9 @@ export function FormikNumber(props: FormikNumberProps) {
                      background: "transparent",
                      border: "none",
                      outline: "none",
-                     fontSize: "14px",
+                     fontSize: theme.typography.fontSize.base,
                      fontWeight: 600,
-                     color: DS.text1,
+                     color: theme.colors.text.primary,
                   }}
                />
                <button
@@ -894,9 +958,9 @@ export function FormikNumber(props: FormikNumberProps) {
                      display: "flex",
                      alignItems: "center",
                      justifyContent: "center",
-                     background: DS.surface,
+                     background: theme.colors.background.surface,
                      border: "none",
-                     borderLeft: `1px solid ${DS.border}`,
+                     borderLeft: `1px solid ${theme.colors.border.DEFAULT}`,
                      cursor: "pointer",
                   }}>
                   <FaPlus size={10} />
@@ -908,9 +972,9 @@ export function FormikNumber(props: FormikNumberProps) {
    );
 }
 
-/* ------------------------------------------------------------------
-   FORMIK CHECKBOX
------------------------------------------------------------------- */
+// ------------------------------------------------------------------
+// FORMIK CHECKBOX
+// ------------------------------------------------------------------
 interface FormikCheckboxProps {
    name: string;
    label: string;
@@ -961,9 +1025,17 @@ export function FormikCheckbox(props: FormikCheckboxProps) {
                style={{
                   width: 20,
                   height: 20,
-                  borderRadius: DS.r3,
-                  background: value ? DS.accent : DS.white,
-                  border: `2px solid ${error ? DS.borderError : value ? DS.accent : DS.border}`,
+                  borderRadius: theme.radius.sm,
+                  background: value
+                     ? theme.colors.primary.DEFAULT
+                     : theme.colors.background.card,
+                  border: `2px solid ${
+                     error
+                        ? theme.colors.border.error
+                        : value
+                          ? theme.colors.primary.DEFAULT
+                          : theme.colors.border.DEFAULT
+                  }`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -982,14 +1054,22 @@ export function FormikCheckbox(props: FormikCheckboxProps) {
             </div>
             <label
                style={{
-                  fontSize: "14px",
+                  fontSize: theme.typography.fontSize.base,
                   fontWeight: 500,
-                  color: value ? DS.text1 : DS.text2,
+                  color: value
+                     ? theme.colors.text.primary
+                     : theme.colors.text.secondary,
                   userSelect: "none",
                }}>
                {label}
                {required && (
-                  <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>
+                  <span
+                     style={{
+                        color: theme.colors.status.error,
+                        marginLeft: 2,
+                     }}>
+                     *
+                  </span>
                )}
             </label>
          </div>
@@ -998,9 +1078,9 @@ export function FormikCheckbox(props: FormikCheckboxProps) {
    );
 }
 
-/* ------------------------------------------------------------------
-   FORMIK SWITCH
------------------------------------------------------------------- */
+// ------------------------------------------------------------------
+// FORMIK SWITCH
+// ------------------------------------------------------------------
 interface FormikSwitchProps {
    name: string;
    label: string;
@@ -1030,7 +1110,7 @@ export function FormikSwitch(props: FormikSwitchProps) {
             style={{
                display: "flex",
                alignItems: "center",
-               gap: "10px",
+               gap: "12px",
                marginBottom: "20px",
                opacity: disabled ? 0.5 : 1,
             }}>
@@ -1058,37 +1138,57 @@ export function FormikSwitch(props: FormikSwitchProps) {
                />
                <div
                   style={{
-                     width: 44,
-                     height: 24,
+                     width: 52,
+                     height: 28,
                      borderRadius: 100,
-                     background: value ? DS.accent : DS.border,
-                     transition: DS.transition,
+                     background: value
+                        ? theme.colors.primary.DEFAULT
+                        : theme.colors.border.DEFAULT,
+                     transition: theme.transitions.DEFAULT,
                      position: "relative",
                   }}>
                   <div
                      style={{
                         position: "absolute",
                         top: 3,
-                        left: value ? 22 : 3,
-                        width: 18,
-                        height: 18,
+                        left: value ? 28 : 3,
+                        width: 22,
+                        height: 22,
                         borderRadius: "50%",
-                        background: DS.white,
-                        transition: DS.transition,
+                        background: theme.colors.background.card,
+                        transition: theme.transitions.DEFAULT,
                      }}
                   />
                </div>
             </label>
+
             <span
                style={{
-                  fontSize: "14px",
+                  fontSize: theme.typography.fontSize.base,
                   fontWeight: 500,
-                  color: value ? DS.text1 : DS.text2,
+                  color: theme.colors.text.primary,
                }}>
                {label}
             </span>
+
+            <span
+               style={{
+                  fontSize: theme.typography.fontSize.sm,
+                  fontWeight: 500,
+                  color: value
+                     ? theme.colors.primary.DEFAULT
+                     : theme.colors.text.disabled,
+                  transition: theme.transitions.DEFAULT,
+               }}>
+               ({value ? "Si" : "No"})
+            </span>
+
             {error && (
-               <span style={{ fontSize: "12px", color: DS.errorText }}>
+               <span
+                  style={{
+                     fontSize: theme.typography.fontSize.sm,
+                     color: theme.colors.status.error,
+                  }}>
                   {error}
                </span>
             )}
@@ -1097,9 +1197,9 @@ export function FormikSwitch(props: FormikSwitchProps) {
    );
 }
 
-/* ------------------------------------------------------------------
-   FORMIK RADIO
------------------------------------------------------------------- */
+// ------------------------------------------------------------------
+// FORMIK RADIO
+// ------------------------------------------------------------------
 interface FormikRadioProps<TOption> {
    name: string;
    label: string;
@@ -1148,8 +1248,10 @@ export function FormikRadio<TOption>(props: FormikRadioProps<TOption>) {
                   top: "-9px",
                   fontSize: "11px",
                   fontWeight: 600,
-                  color: error ? DS.errorText : DS.text2,
-                  background: DS.white,
+                  color: error
+                     ? theme.colors.status.error
+                     : theme.colors.text.secondary,
+                  background: theme.colors.background.card,
                   padding: "0 4px",
                   letterSpacing: "0.04em",
                   textTransform: "uppercase",
@@ -1157,15 +1259,25 @@ export function FormikRadio<TOption>(props: FormikRadioProps<TOption>) {
                }}>
                {label}
                {required && (
-                  <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>
+                  <span
+                     style={{
+                        color: theme.colors.status.error,
+                        marginLeft: 2,
+                     }}>
+                     *
+                  </span>
                )}
             </label>
             <div
                style={{
-                  border: `1.5px solid ${error ? DS.borderError : DS.border}`,
-                  borderRadius: DS.r8,
+                  border: `1.5px solid ${
+                     error
+                        ? theme.colors.border.error
+                        : theme.colors.border.DEFAULT
+                  }`,
+                  borderRadius: theme.radius.md,
                   padding: "16px 12px 10px",
-                  background: DS.white,
+                  background: theme.colors.background.card,
                }}>
                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                   {options.map((option) => {
@@ -1179,15 +1291,21 @@ export function FormikRadio<TOption>(props: FormikRadioProps<TOption>) {
                               alignItems: "center",
                               gap: "8px",
                               padding: "8px 14px",
-                              borderRadius: DS.r6,
-                              border: `1.5px solid ${isSelected ? (error ? DS.borderError : DS.accent) : DS.border}`,
+                              borderRadius: theme.radius.md,
+                              border: `1.5px solid ${
+                                 isSelected
+                                    ? error
+                                       ? theme.colors.border.error
+                                       : theme.colors.primary.DEFAULT
+                                    : theme.colors.border.DEFAULT
+                              }`,
                               background: isSelected
                                  ? error
                                     ? "rgba(220,38,38,0.06)"
-                                    : DS.accentLight
-                                 : DS.white,
+                                    : theme.colors.feedback.primaryLight
+                                 : theme.colors.background.card,
                               cursor: disabled ? "not-allowed" : "pointer",
-                              transition: DS.transition,
+                              transition: theme.transitions.DEFAULT,
                            }}
                            onClick={() => {
                               if (!disabled) {
@@ -1200,12 +1318,18 @@ export function FormikRadio<TOption>(props: FormikRadioProps<TOption>) {
                                  width: 16,
                                  height: 16,
                                  borderRadius: "50%",
-                                 border: `2px solid ${isSelected ? (error ? DS.borderError : DS.accent) : DS.border}`,
+                                 border: `2px solid ${
+                                    isSelected
+                                       ? error
+                                          ? theme.colors.border.error
+                                          : theme.colors.primary.DEFAULT
+                                       : theme.colors.border.DEFAULT
+                                 }`,
                                  background: isSelected
                                     ? error
-                                       ? DS.borderError
-                                       : DS.accent
-                                    : DS.white,
+                                       ? theme.colors.border.error
+                                       : theme.colors.primary.DEFAULT
+                                    : theme.colors.background.card,
                                  display: "flex",
                                  alignItems: "center",
                                  justifyContent: "center",
@@ -1225,7 +1349,9 @@ export function FormikRadio<TOption>(props: FormikRadioProps<TOption>) {
                               style={{
                                  fontSize: "13.5px",
                                  fontWeight: isSelected ? 600 : 400,
-                                 color: isSelected ? DS.text1 : DS.text2,
+                                 color: isSelected
+                                    ? theme.colors.text.primary
+                                    : theme.colors.text.secondary,
                               }}>
                               {String(option[labelKey])}
                            </span>
@@ -1240,11 +1366,9 @@ export function FormikRadio<TOption>(props: FormikRadioProps<TOption>) {
    );
 }
 
-/* ------------------------------------------------------------------
-   FORMIK AUTOCOMPLETE (con soporte de árbol)
------------------------------------------------------------------- */
-type TreeNode<T> = T & { children_recursive?: TreeNode<T>[] };
-
+// ------------------------------------------------------------------
+// FORMIK AUTOCOMPLETE
+// ------------------------------------------------------------------
 interface FormikAutocompleteProps<TOption> {
    name: string;
    label: string;
@@ -1259,14 +1383,9 @@ interface FormikAutocompleteProps<TOption> {
    onSelect?: (value: TOption) => void;
    onRefresh?: () => void | Promise<void>;
    onAdd?: () => void;
-   // ── Nuevos ────────────────────────────────────────────────────
-   /** Dispara al seleccionar una opción (valor ya commiteado) */
    onChange?: (value: any, formik: FormikCtx) => void;
-   /** Dispara en cada pulsación mientras el usuario escribe en el input */
    onInput?: (text: string, formik: FormikCtx) => void;
-   /** Transforma el case del texto de búsqueda. Default: "none" */
    caseTransform?: CaseTransform;
-   // ──────────────────────────────────────────────────────────────
 }
 
 export function FormikAutocomplete<TOption>(
@@ -1379,7 +1498,6 @@ export function FormikAutocomplete<TOption>(
    const handleFilter = (rawQuery: string) => {
       const query = applyCase(rawQuery, caseTransform);
       setTextSearch(query);
-      // onInput: se dispara con cada carácter
       onInput?.(query, formik);
       if (!query) {
          setFilteredOptions(options);
@@ -1397,7 +1515,6 @@ export function FormikAutocomplete<TOption>(
       setShowOptions(false);
       setIsFocused(false);
       onSelect?.(item);
-      // onChange: dispara cuando el usuario selecciona una opción
       onChange?.(item[idKey], formik);
    };
 
@@ -1455,11 +1572,11 @@ export function FormikAutocomplete<TOption>(
       background: "none",
       border: "none",
       cursor: "pointer",
-      color: DS.text3,
+      color: theme.colors.text.disabled,
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      borderRadius: "6px",
+      borderRadius: theme.radius.md,
       height: "28px",
       width: "28px",
       transition: "color 0.15s, background 0.15s",
@@ -1479,45 +1596,57 @@ export function FormikAutocomplete<TOption>(
    return (
       <ColComponent responsive={responsive} autoPadding={padding}>
          <div style={{ position: "relative", marginBottom: "20px" }}>
-            {/* Label flotante */}
             <label
                htmlFor={name}
                style={{
                   position: "absolute",
                   left: "12px",
                   top: isActive ? "-9px" : "14px",
-                  fontSize: isActive ? "11px" : "14px",
+                  fontSize: isActive ? "11px" : theme.typography.fontSize.base,
                   fontWeight: isActive ? 600 : 400,
                   color: isActive
                      ? error
-                        ? DS.errorText
+                        ? theme.colors.status.error
                         : isFocused
-                          ? DS.accent
-                          : DS.text2
-                     : DS.textPlaceholder,
-                  background: DS.white,
+                          ? theme.colors.primary.DEFAULT
+                          : theme.colors.text.secondary
+                     : theme.colors.text.placeholder,
+                  background: theme.colors.background.card,
                   padding: "0 4px",
-                  transition: DS.transition,
+                  transition: theme.transitions.DEFAULT,
                   letterSpacing: isActive ? "0.04em" : "0",
                   textTransform: isActive ? "uppercase" : "none",
                   zIndex: 2,
                }}>
                {label}
                {required && (
-                  <span style={{ color: DS.errorText, marginLeft: 2 }}>*</span>
+                  <span
+                     style={{
+                        color: theme.colors.status.error,
+                        marginLeft: 2,
+                     }}>
+                     *
+                  </span>
                )}
             </label>
 
-            {/* Input container */}
             <div
                style={{
                   display: "flex",
                   alignItems: "center",
-                  border: `1.5px solid ${error ? DS.borderError : isFocused ? DS.borderFocus : DS.border}`,
-                  borderRadius: DS.r8,
-                  background: DS.white,
-                  boxShadow: isFocused ? DS.accentGlow : "none",
-                  transition: DS.transition,
+                  border: `1.5px solid ${
+                     error
+                        ? theme.colors.border.error
+                        : isFocused
+                          ? theme.colors.border.focus
+                          : theme.colors.border.DEFAULT
+                  }`,
+                  borderRadius: theme.radius.md,
+                  background: theme.colors.background.card,
+                  boxShadow: isFocused
+                     ? theme.colors.feedback.primaryGlow
+                     : "none",
+                  transition: theme.transitions.DEFAULT,
                }}>
                <input
                   ref={inputRef}
@@ -1543,8 +1672,8 @@ export function FormikAutocomplete<TOption>(
                      background: "transparent",
                      border: "none",
                      outline: "none",
-                     fontSize: "14px",
-                     color: DS.text1,
+                     fontSize: theme.typography.fontSize.base,
+                     color: theme.colors.text.primary,
                   }}
                />
 
@@ -1553,7 +1682,7 @@ export function FormikAutocomplete<TOption>(
                      style={{
                         width: "1px",
                         height: "20px",
-                        background: DS.border,
+                        background: theme.colors.border.DEFAULT,
                         margin: "0 2px",
                         flexShrink: 0,
                      }}
@@ -1573,14 +1702,14 @@ export function FormikAutocomplete<TOption>(
                      }}
                      onMouseEnter={(e) => {
                         (e.currentTarget as HTMLButtonElement).style.color =
-                           DS.accent;
+                           theme.colors.primary.DEFAULT;
                         (
                            e.currentTarget as HTMLButtonElement
-                        ).style.background = DS.accentLight;
+                        ).style.background = theme.colors.feedback.primaryLight;
                      }}
                      onMouseLeave={(e) => {
                         (e.currentTarget as HTMLButtonElement).style.color =
-                           DS.text3;
+                           theme.colors.text.disabled;
                         (
                            e.currentTarget as HTMLButtonElement
                         ).style.background = "none";
@@ -1590,8 +1719,8 @@ export function FormikAutocomplete<TOption>(
                            style={{
                               width: 13,
                               height: 13,
-                              border: `2px solid ${DS.border}`,
-                              borderTopColor: DS.accent,
+                              border: `2px solid ${theme.colors.border.DEFAULT}`,
+                              borderTopColor: theme.colors.primary.DEFAULT,
                               borderRadius: "50%",
                               animation: "spin 0.7s linear infinite",
                            }}
@@ -1622,11 +1751,11 @@ export function FormikAutocomplete<TOption>(
                      style={actionButtonStyle}
                      onMouseEnter={(e) => {
                         (e.currentTarget as HTMLButtonElement).style.color =
-                           DS.successText ?? "#16a34a";
+                           theme.colors.status.success;
                      }}
                      onMouseLeave={(e) => {
                         (e.currentTarget as HTMLButtonElement).style.color =
-                           DS.text3;
+                           theme.colors.text.disabled;
                         (
                            e.currentTarget as HTMLButtonElement
                         ).style.background = "none";
@@ -1650,7 +1779,7 @@ export function FormikAutocomplete<TOption>(
                      style={{
                         width: "1px",
                         height: "20px",
-                        background: DS.border,
+                        background: theme.colors.border.DEFAULT,
                         margin: "0 2px",
                         flexShrink: 0,
                      }}
@@ -1663,8 +1792,8 @@ export function FormikAutocomplete<TOption>(
                         style={{
                            width: 16,
                            height: 16,
-                           border: `2px solid ${DS.border}`,
-                           borderTopColor: DS.accent,
+                           border: `2px solid ${theme.colors.border.DEFAULT}`,
+                           borderTopColor: theme.colors.primary.DEFAULT,
                            borderRadius: "50%",
                            animation: "spin 0.7s linear infinite",
                         }}
@@ -1679,7 +1808,7 @@ export function FormikAutocomplete<TOption>(
                         background: "none",
                         border: "none",
                         cursor: "pointer",
-                        color: DS.text3,
+                        color: theme.colors.text.placeholder,
                      }}>
                      <svg
                         width={16}
@@ -1702,7 +1831,6 @@ export function FormikAutocomplete<TOption>(
                )}
             </div>
 
-            {/* Dropdown */}
             <AnimatePresence>
                {showOptions && (
                   <motion.ul
@@ -1713,14 +1841,14 @@ export function FormikAutocomplete<TOption>(
                      transition={{ duration: 0.13 }}
                      style={{
                         position: "absolute",
-                        zIndex: 50,
+                        zIndex: theme.zIndex.dropdown,
                         top: "calc(100% + 6px)",
                         left: 0,
                         right: 0,
-                        background: DS.white,
-                        border: `1.5px solid ${DS.border}`,
-                        borderRadius: DS.r8,
-                        boxShadow: DS.shadowDropdown,
+                        background: theme.colors.background.card,
+                        border: `1.5px solid ${theme.colors.border.DEFAULT}`,
+                        borderRadius: theme.radius.md,
+                        boxShadow: theme.shadows.dropdown,
                         maxHeight: 280,
                         overflowY: "auto",
                         listStyle: "none",
@@ -1734,10 +1862,10 @@ export function FormikAutocomplete<TOption>(
                               onClick={() => selectOption(item)}
                               style={{
                                  padding: `8px 10px 8px ${12 + depth * 18}px`,
-                                 borderRadius: DS.r6,
+                                 borderRadius: theme.radius.md,
                                  background:
                                     activeIndex === idx
-                                       ? DS.accentLight
+                                       ? theme.colors.feedback.primaryLight
                                        : "transparent",
                                  cursor: "pointer",
                                  display: "flex",
@@ -1764,7 +1892,7 @@ export function FormikAutocomplete<TOption>(
                                     height={13}
                                     viewBox="0 0 24 24"
                                     fill="none"
-                                    stroke={DS.accent}>
+                                    stroke={theme.colors.primary.DEFAULT}>
                                     <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
                                  </svg>
                               ) : (
@@ -1773,7 +1901,7 @@ export function FormikAutocomplete<TOption>(
                                        width: 6,
                                        height: 6,
                                        borderRadius: "50%",
-                                       background: DS.border,
+                                       background: theme.colors.border.DEFAULT,
                                     }}
                                  />
                               )}
@@ -1791,7 +1919,7 @@ export function FormikAutocomplete<TOption>(
                            style={{
                               padding: "16px",
                               textAlign: "center",
-                              color: DS.text3,
+                              color: theme.colors.text.disabled,
                            }}>
                            No hay opciones
                         </li>
@@ -1806,13 +1934,12 @@ export function FormikAutocomplete<TOption>(
    );
 }
 
-/* ------------------------------------------------------------------
-   FORMIK COLOR PICKER
------------------------------------------------------------------- */
+// ------------------------------------------------------------------
+// FORMIK COLOR PICKER
+// ------------------------------------------------------------------
 interface FormikColorPickerProps {
    name: string;
    label: string;
-   colorPalette: string[];
    disabled?: boolean;
    required?: boolean;
    onChange?: (value: string, formik: FormikCtx) => void;
@@ -1824,27 +1951,232 @@ export function FormikColorPicker(props: FormikColorPickerProps) {
    const {
       name,
       label,
-      colorPalette,
       disabled = false,
-      required = false,
       onChange,
       responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
       padding = true,
    } = props;
+   const dropdownRef = useRef<HTMLDivElement>(null);
+
    const formik = useFormikContext<Record<string, any>>();
    const [isOpen, setIsOpen] = useState(false);
-   const pickerRef = useRef<HTMLDivElement>(null);
-   const currentColor =
-      (formik.values?.[name] as string) || colorPalette[0] || "#000000";
+   const buttonRef = useRef<HTMLButtonElement>(null);
+   const [dropdownPosition, setDropdownPosition] = useState({
+      top: 0,
+      left: 0,
+      transformOrigin: "top" as "top" | "bottom",
+   });
+
+   // Estado local para el color (garantiza la actualización visual)
+   const [selectedColor, setSelectedColor] = useState<string>(
+      getIn(formik.values, name) || "#3B82F6",
+   );
+
+   // Sincronizar con Formik cuando el valor cambie externamente
+   useEffect(() => {
+      const newValue = getIn(formik.values, name);
+      if (newValue && newValue !== selectedColor) {
+         setSelectedColor(newValue);
+      }
+   }, [formik.values, name, selectedColor]);
+
+   const colorPalette = [
+      "#DBEAFE",
+      "#BFDBFE",
+      "#93C5FD",
+      "#60A5FA",
+      "#3B82F6",
+      "#2563EB",
+      "#1D4ED8",
+      "#1E40AF",
+      "#1E3A8A",
+      "#FEE2E2",
+      "#FECACA",
+      "#FCA5A5",
+      "#F87171",
+      "#EF4444",
+      "#DC2626",
+      "#B91C1C",
+      "#991B1B",
+      "#7F1D1D",
+      "#D1FAE5",
+      "#A7F3D0",
+      "#6EE7B7",
+      "#34D399",
+      "#10B981",
+      "#059669",
+      "#047857",
+      "#065F46",
+      "#064E3B",
+      "#FEF3C7",
+      "#FDE68A",
+      "#FCD34D",
+      "#FBBF24",
+      "#F59E0B",
+      "#D97706",
+      "#B45309",
+      "#92400E",
+      "#78350F",
+      "#EDE9FE",
+      "#DDD6FE",
+      "#C4B5FD",
+      "#A78BFA",
+      "#8B5CF6",
+      "#7C3AED",
+      "#6D28D9",
+      "#5B21B6",
+      "#4C1D95",
+      "#FCE7F3",
+      "#FBCFE8",
+      "#F9A8D4",
+      "#F472B6",
+      "#EC4899",
+      "#DB2777",
+      "#BE185D",
+      "#9D174D",
+      "#831843",
+      "#CFFAFE",
+      "#A5F3FC",
+      "#67E8F9",
+      "#22D3EE",
+      "#06B6D4",
+      "#0891B2",
+      "#0E7490",
+      "#155E75",
+      "#164E63",
+      "#FFEDD5",
+      "#FED7AA",
+      "#FDBA74",
+      "#FB923C",
+      "#F97316",
+      "#EA580C",
+      "#C2410C",
+      "#9A3412",
+      "#7C2D12",
+      "#E0E7FF",
+      "#C7D2FE",
+      "#A5B4FC",
+      "#818CF8",
+      "#6366F1",
+      "#4F46E5",
+      "#4338CA",
+      "#3730A3",
+      "#312E81",
+      "#CCFBF1",
+      "#99F6E4",
+      "#5EEAD4",
+      "#2DD4BF",
+      "#14B8A6",
+      "#0D9488",
+      "#0F766E",
+      "#115E59",
+      "#134E4A",
+      "#FAE8FF",
+      "#F5D0FE",
+      "#F0ABFC",
+      "#E879F9",
+      "#D946EF",
+      "#C026D3",
+      "#A21CAF",
+      "#86198F",
+      "#701A75",
+      "#ECFCCB",
+      "#D9F99D",
+      "#BEF264",
+      "#A3E635",
+      "#84CC16",
+      "#65A30D",
+      "#4D7C0F",
+      "#3F6212",
+      "#365314",
+      "#F3F4F6",
+      "#E5E7EB",
+      "#D1D5DB",
+      "#9CA3AF",
+      "#6B7280",
+      "#4B5563",
+      "#374151",
+      "#1F2937",
+      "#111827",
+      "#F1F5F9",
+      "#E2E8F0",
+      "#CBD5E1",
+      "#94A3B8",
+      "#64748B",
+      "#475569",
+      "#334155",
+      "#1E293B",
+      "#0F172A",
+      "#F4F4F5",
+      "#E4E4E7",
+      "#D4D4D8",
+      "#A1A1AA",
+      "#71717A",
+      "#52525B",
+      "#3F3F46",
+      "#27272A",
+      "#18181B",
+   ];
+
+   const currentColor = selectedColor || "#3B82F6";
    const error =
-      formik.touched[name] && formik.errors[name]
-         ? String(formik.errors[name])
+      getIn(formik.touched, name) && getIn(formik.errors, name)
+         ? String(getIn(formik.errors, name))
          : null;
+
+   // Posicionamiento del dropdown (con portal)
+   const updateDropdownPosition = useCallback(() => {
+      if (!buttonRef.current || !isOpen) return;
+      const rect = buttonRef.current.getBoundingClientRect();
+      const dropdownWidth = 280;
+      const dropdownHeight = 320;
+      const spacing = 8;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      let top: number;
+      let transformOrigin: "top" | "bottom";
+      const spaceBelow = viewportHeight - rect.bottom;
+      const spaceAbove = rect.top;
+
+      if (spaceBelow >= dropdownHeight + spacing || spaceBelow >= spaceAbove) {
+         top = rect.bottom + spacing;
+         transformOrigin = "top";
+      } else {
+         top = rect.top - dropdownHeight - spacing;
+         transformOrigin = "bottom";
+      }
+
+      let left = rect.left;
+      const overflowRight = left + dropdownWidth - viewportWidth;
+      if (overflowRight > 0) left = Math.max(spacing, left - overflowRight);
+      if (left < spacing) left = spacing;
+
+      setDropdownPosition({ top, left, transformOrigin });
+   }, [isOpen]);
+
+   useEffect(() => {
+      if (isOpen) {
+         updateDropdownPosition();
+         window.addEventListener("resize", updateDropdownPosition);
+         window.addEventListener("scroll", updateDropdownPosition, true);
+      }
+      return () => {
+         window.removeEventListener("resize", updateDropdownPosition);
+         window.removeEventListener("scroll", updateDropdownPosition, true);
+      };
+   }, [isOpen, updateDropdownPosition]);
 
    useEffect(() => {
       const handleClickOutside = (e: MouseEvent) => {
-         if (pickerRef.current && !pickerRef.current.contains(e.target as Node))
-            setIsOpen(false);
+         // No cerrar si el clic es dentro del dropdown
+         if (
+            dropdownRef.current?.contains(e.target as Node) ||
+            buttonRef.current?.contains(e.target as Node)
+         ) {
+            return;
+         }
+         setIsOpen(false);
       };
       document.addEventListener("mousedown", handleClickOutside);
       return () =>
@@ -1852,17 +2184,20 @@ export function FormikColorPicker(props: FormikColorPickerProps) {
    }, []);
 
    const selectColor = (color: string) => {
-      formik.setFieldValue(name, color);
+      setSelectedColor(color); // Actualiza UI inmediatamente
+      formik.setFieldValue(name, color); // Actualiza Formik
+      formik.setFieldTouched(name, true); // Marca como touched
       onChange?.(color, formik);
       setIsOpen(false);
    };
 
    return (
       <ColComponent responsive={responsive} autoPadding={padding}>
-         <div
-            ref={pickerRef}
-            style={{ position: "relative", marginBottom: "20px" }}>
+         <div style={{ position: "relative", marginBottom: "20px" }}>
+            {" "}
+            {/* ← agregar marginBottom */}
             <button
+               ref={buttonRef}
                type="button"
                onClick={() => !disabled && setIsOpen((o) => !o)}
                disabled={disabled}
@@ -1872,19 +2207,27 @@ export function FormikColorPicker(props: FormikColorPickerProps) {
                   alignItems: "center",
                   gap: "14px",
                   padding: "10px 14px",
-                  background: DS.white,
-                  border: `1.5px solid ${isOpen ? DS.borderFocus : error ? DS.borderError : DS.border}`,
-                  borderRadius: DS.r8,
+                  background: theme.colors.background.card,
+                  border: `1.5px solid ${
+                     isOpen
+                        ? theme.colors.border.focus
+                        : error
+                          ? theme.colors.border.error
+                          : theme.colors.border.DEFAULT
+                  }`,
+                  borderRadius: theme.radius.md,
                   cursor: disabled ? "not-allowed" : "pointer",
-                  transition: DS.transition,
-                  boxShadow: isOpen ? DS.accentGlow : DS.shadowSm,
+                  transition: theme.transitions.DEFAULT,
+                  boxShadow: isOpen
+                     ? theme.colors.feedback.primaryGlow
+                     : theme.shadows.sm,
                   opacity: disabled ? 0.5 : 1,
                }}>
                <div
                   style={{
                      width: 44,
                      height: 44,
-                     borderRadius: DS.r6,
+                     borderRadius: theme.radius.md,
                      background: currentColor,
                      border: "1px solid rgba(0,0,0,0.08)",
                   }}
@@ -1894,14 +2237,14 @@ export function FormikColorPicker(props: FormikColorPickerProps) {
                      style={{
                         fontSize: "13px",
                         fontWeight: 600,
-                        color: DS.text1,
+                        color: theme.colors.text.primary,
                      }}>
                      {label}
                   </div>
                   <div
                      style={{
-                        fontSize: "12px",
-                        color: DS.text3,
+                        fontSize: theme.typography.fontSize.sm,
+                        color: theme.colors.text.disabled,
                         fontFamily: "monospace",
                      }}>
                      {currentColor.toUpperCase()}
@@ -1922,111 +2265,129 @@ export function FormikColorPicker(props: FormikColorPickerProps) {
                   />
                </svg>
             </button>
-            <AnimatePresence>
-               {isOpen && (
-                  <motion.div
-                     initial={{ opacity: 0, y: -8 }}
-                     animate={{ opacity: 1, y: 0 }}
-                     exit={{ opacity: 0, y: -8 }}
-                     transition={{ duration: 0.15 }}
-                     style={{
-                        position: "absolute",
-                        top: "calc(100% + 8px)",
-                        left: 0,
-                        right: 0,
-                        zIndex: 50,
-                        background: DS.white,
-                        border: `1.5px solid ${DS.border}`,
-                        borderRadius: DS.r10,
-                        boxShadow: DS.shadowDropdown,
-                     }}>
-                     <div
+            {isOpen &&
+               createPortal(
+                  <AnimatePresence>
+                     <motion.div
+                        ref={dropdownRef}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
                         style={{
-                           padding: "12px 14px",
-                           borderBottom: `1px solid ${DS.border}`,
-                           background: DS.surface,
+                           position: "fixed",
+                           top: dropdownPosition.top,
+                           left: dropdownPosition.left,
+                           width: 280,
+                           zIndex: theme.zIndex.dropdown,
+                           transformOrigin: dropdownPosition.transformOrigin,
                         }}>
                         <div
                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 10,
+                              background: theme.colors.background.card,
+                              border: `1.5px solid ${theme.colors.border.DEFAULT}`,
+                              borderRadius: theme.radius.xl,
+                              boxShadow: theme.shadows.dropdown,
+                              overflow: "hidden",
                            }}>
                            <div
                               style={{
-                                 width: 28,
-                                 height: 28,
-                                 borderRadius: DS.r3,
-                                 background: currentColor,
-                              }}
-                           />
-                           <div>
-                              <div
-                                 style={{ fontSize: "12px", fontWeight: 600 }}>
-                                 Color seleccionado
-                              </div>
+                                 padding: "12px 14px",
+                                 borderBottom: `1px solid ${theme.colors.border.DEFAULT}`,
+                                 background: theme.colors.background.surface,
+                              }}>
                               <div
                                  style={{
-                                    fontSize: "11px",
-                                    fontFamily: "monospace",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 10,
                                  }}>
-                                 {currentColor.toUpperCase()}
+                                 <div
+                                    style={{
+                                       width: 28,
+                                       height: 28,
+                                       borderRadius: theme.radius.sm,
+                                       background: currentColor,
+                                       border: "1px solid rgba(0,0,0,0.1)",
+                                    }}
+                                 />
+                                 <div>
+                                    <div
+                                       style={{
+                                          fontSize:
+                                             theme.typography.fontSize.sm,
+                                          fontWeight: 600,
+                                          color: theme.colors.text.primary,
+                                       }}>
+                                       Color seleccionado
+                                    </div>
+                                    <div
+                                       style={{
+                                          fontSize: "11px",
+                                          fontFamily: "monospace",
+                                          color: theme.colors.text.secondary,
+                                       }}>
+                                       {currentColor.toUpperCase()}
+                                    </div>
+                                 </div>
+                              </div>
+                           </div>
+
+                           <div
+                              style={{
+                                 padding: "14px",
+                                 maxHeight: "220px",
+                                 overflowY: "auto",
+                              }}>
+                              <div
+                                 style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "repeat(10, 1fr)",
+                                    gap: "8px",
+                                 }}>
+                                 {colorPalette.map((color) => (
+                                    <button
+                                       key={color}
+                                       type="button"
+                                       onClick={() => selectColor(color)}
+                                       style={{
+                                          paddingBottom: "100%",
+                                          position: "relative",
+                                          borderRadius: theme.radius.sm,
+                                          background: color,
+                                          border:
+                                             currentColor === color
+                                                ? "2px solid white"
+                                                : "2px solid transparent",
+                                          outline:
+                                             currentColor === color
+                                                ? `2px solid ${theme.colors.primary.DEFAULT}`
+                                                : "none",
+                                          transform:
+                                             currentColor === color
+                                                ? "scale(1.15)"
+                                                : "scale(1)",
+                                          transition: theme.transitions.DEFAULT,
+                                          cursor: "pointer",
+                                       }}
+                                    />
+                                 ))}
                               </div>
                            </div>
                         </div>
-                     </div>
-                     <div
-                        style={{
-                           padding: "14px",
-                           maxHeight: "220px",
-                           overflowY: "auto",
-                        }}>
-                        <div
-                           style={{
-                              display: "grid",
-                              gridTemplateColumns: "repeat(10, 1fr)",
-                              gap: "8px",
-                           }}>
-                           {colorPalette.map((color) => (
-                              <button
-                                 key={color}
-                                 type="button"
-                                 onClick={() => selectColor(color)}
-                                 style={{
-                                    paddingBottom: "100%",
-                                    position: "relative",
-                                    borderRadius: DS.r3,
-                                    background: color,
-                                    border:
-                                       currentColor === color
-                                          ? "2px solid white"
-                                          : "2px solid transparent",
-                                    outline:
-                                       currentColor === color
-                                          ? `2px solid ${DS.accent}`
-                                          : "none",
-                                    transform:
-                                       currentColor === color
-                                          ? "scale(1.15)"
-                                          : "scale(1)",
-                                    transition: DS.transition,
-                                 }}
-                              />
-                           ))}
-                        </div>
-                     </div>
-                  </motion.div>
+                     </motion.div>
+                  </AnimatePresence>,
+                  document.body,
                )}
-            </AnimatePresence>
             <FieldError error={error} />
          </div>
       </ColComponent>
    );
 }
 
-/* ------------------------------------------------------------------
-   FORMIK IMAGE INPUT
------------------------------------------------------------------- */
+// ------------------------------------------------------------------
+// FORMIK IMAGE INPUT
+// ------------------------------------------------------------------
 interface FormikImageInputProps {
    name: string;
    label: string;
@@ -2117,7 +2478,7 @@ export function FormikImageInput(props: FormikImageInputProps) {
                   fontSize: "13px",
                   fontWeight: 600,
                   marginBottom: "8px",
-                  color: DS.text1,
+                  color: theme.colors.text.primary,
                }}>
                {label}
             </div>
@@ -2137,8 +2498,8 @@ export function FormikImageInput(props: FormikImageInputProps) {
                            width: "100%",
                            height: "100%",
                            objectFit: "cover",
-                           borderRadius: DS.r6,
-                           border: `1px solid ${DS.border}`,
+                           borderRadius: theme.radius.md,
+                           border: `1px solid ${theme.colors.border.DEFAULT}`,
                         }}
                      />
                      <button
@@ -2151,7 +2512,7 @@ export function FormikImageInput(props: FormikImageInputProps) {
                            width: "24px",
                            height: "24px",
                            borderRadius: "50%",
-                           background: DS.errorText,
+                           background: theme.colors.status.error,
                            color: "white",
                            border: "none",
                            cursor: "pointer",
@@ -2169,17 +2530,24 @@ export function FormikImageInput(props: FormikImageInputProps) {
                      style={{
                         width: "100px",
                         height: "100px",
-                        border: `2px dashed ${DS.border}`,
-                        borderRadius: DS.r6,
+                        border: `2px dashed ${theme.colors.border.DEFAULT}`,
+                        borderRadius: theme.radius.md,
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "center",
                         justifyContent: "center",
                         cursor: "pointer",
-                        background: DS.surface,
+                        background: theme.colors.background.surface,
                      }}>
-                     <AiOutlineCamera size={24} color={DS.text3} />
-                     <span style={{ fontSize: "12px", color: DS.text3 }}>
+                     <AiOutlineCamera
+                        size={24}
+                        color={theme.colors.text.placeholder}
+                     />
+                     <span
+                        style={{
+                           fontSize: theme.typography.fontSize.sm,
+                           color: theme.colors.text.placeholder,
+                        }}>
                         Subir
                      </span>
                   </div>
@@ -2197,13 +2565,1905 @@ export function FormikImageInput(props: FormikImageInputProps) {
             {error && (
                <div
                   style={{
-                     color: DS.errorText,
-                     fontSize: "12px",
+                     color: theme.colors.status.error,
+                     fontSize: theme.typography.fontSize.sm,
                      marginTop: "8px",
                   }}>
                   {error}
                </div>
             )}
+         </div>
+      </ColComponent>
+   );
+}
+
+// ------------------------------------------------------------------
+// FORMIK MULTI SELECT (nativo, sin react-select)
+// ------------------------------------------------------------------
+interface FormikMultiSelectProps {
+   name: string;
+   label: string;
+   options: Option[];
+   loading?: boolean;
+   disabled?: boolean;
+   required?: boolean;
+   placeholder?: string;
+   responsive?: ResponsiveProps;
+   onRefresh?: () => void | Promise<void>;
+   onAdd?: () => void;
+   onChange?: (value: any, formik: FormikCtx) => void;
+}
+
+export function FormikMultiSelect(props: FormikMultiSelectProps) {
+   const {
+      name,
+      label,
+      options,
+      loading = false,
+      disabled = false,
+      required = false,
+      placeholder = "Seleccione...",
+      responsive,
+      onRefresh,
+      onAdd,
+      onChange: externalOnChange,
+   } = props;
+
+   const formik = useFormikContext();
+   const value: (string | number)[] = formik.values[name] || [];
+   const error =
+      formik.touched[name] && formik.errors[name]
+         ? String(formik.errors[name])
+         : null;
+
+   const [isOpen, setIsOpen] = useState(false);
+   const [searchTerm, setSearchTerm] = useState("");
+   const [isFocused, setIsFocused] = useState(false);
+   const [isRefreshing, setIsRefreshing] = useState(false);
+   const containerRef = useRef<HTMLDivElement>(null);
+   const dropdownRef = useRef<HTMLDivElement>(null);
+   const [dropdownPosition, setDropdownPosition] = useState({
+      top: 0,
+      left: 0,
+      width: 0,
+      maxHeight: 200,
+      placement: "bottom" as "bottom" | "top",
+   });
+
+   const hasValue = value.length > 0;
+   const isActive = hasValue || isFocused || isOpen;
+
+   const filteredOptions = options.filter((opt) =>
+      opt.label.toLowerCase().includes(searchTerm.toLowerCase()),
+   );
+
+   const updateDropdownPosition = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const windowHeight = window.innerHeight;
+      const spaceBelow = windowHeight - rect.bottom;
+      const spaceAbove = rect.top;
+
+      const estimatedHeight = Math.min(320, filteredOptions.length * 42 + 90);
+      const GAP = 4;
+
+      let topPosition: number;
+      let placement: "bottom" | "top";
+      let maxHeight: number;
+
+      if (spaceBelow >= estimatedHeight + GAP) {
+         placement = "bottom";
+         topPosition = rect.bottom + window.scrollY + GAP;
+         maxHeight = Math.min(estimatedHeight, spaceBelow - 20);
+      } else if (spaceAbove >= estimatedHeight + GAP) {
+         placement = "top";
+         topPosition = rect.top + window.scrollY - estimatedHeight - GAP;
+         maxHeight = Math.min(estimatedHeight, spaceAbove - 20);
+      } else {
+         placement = "bottom";
+         topPosition = rect.bottom + window.scrollY + GAP;
+         maxHeight = Math.max(150, spaceBelow - 20);
+      }
+
+      setDropdownPosition({
+         top: topPosition,
+         left: rect.left + window.scrollX,
+         width: rect.width,
+         maxHeight: Math.max(150, maxHeight),
+         placement,
+      });
+   };
+
+   const openDropdown = () => {
+      if (disabled) return;
+      updateDropdownPosition();
+      setIsOpen(true);
+      setIsFocused(true);
+      setSearchTerm("");
+   };
+
+   const closeDropdown = () => {
+      setIsOpen(false);
+      setIsFocused(false);
+      setSearchTerm("");
+   };
+
+   const toggleOpen = () => {
+      if (isOpen) closeDropdown();
+      else openDropdown();
+   };
+
+   useEffect(() => {
+      const handleClickOutside = (e: MouseEvent) => {
+         if (
+            containerRef.current &&
+            !containerRef.current.contains(e.target as Node)
+         ) {
+            if (
+               dropdownRef.current &&
+               dropdownRef.current.contains(e.target as Node)
+            ) {
+               return;
+            }
+            closeDropdown();
+         }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+         document.removeEventListener("mousedown", handleClickOutside);
+   }, []);
+
+   useEffect(() => {
+      if (!isOpen) return;
+      const handleUpdate = () => updateDropdownPosition();
+      window.addEventListener("scroll", handleUpdate, true);
+      window.addEventListener("resize", handleUpdate);
+      return () => {
+         window.removeEventListener("scroll", handleUpdate, true);
+         window.removeEventListener("resize", handleUpdate);
+      };
+   }, [isOpen, filteredOptions.length]);
+
+   const toggleValue = (optValue: string | number) => {
+      const newValue = value.includes(optValue)
+         ? value.filter((v) => v !== optValue)
+         : [...value, optValue];
+      formik.setFieldValue(name, newValue);
+      formik.setFieldTouched(name, true);
+      externalOnChange?.(newValue, formik);
+   };
+
+   const handleRefresh = async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!onRefresh || isRefreshing) return;
+      setIsRefreshing(true);
+      try {
+         await onRefresh();
+      } finally {
+         setIsRefreshing(false);
+      }
+   };
+
+   const handleAdd = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onAdd?.();
+   };
+
+   const removeChip = (optValue: string | number, e: React.MouseEvent) => {
+      e.stopPropagation();
+      const newValue = value.filter((v) => v !== optValue);
+      formik.setFieldValue(name, newValue);
+      formik.setFieldTouched(name, true);
+      externalOnChange?.(newValue, formik);
+   };
+
+   const actionButtonStyle: React.CSSProperties = {
+      padding: "0 7px",
+      background: "none",
+      border: "none",
+      cursor: "pointer",
+      color: theme.colors.text.disabled,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: "6px",
+      height: "28px",
+      width: "28px",
+      transition: "color 0.15s, background 0.15s",
+   };
+
+   if (disabled) {
+      const selectedLabels = options
+         .filter((opt) => value.includes(opt.value))
+         .map((opt) => opt.label);
+      return (
+         <DisabledField
+            label={label}
+            value={selectedLabels.join(", ")}
+            error={error}
+            responsive={responsive}
+         />
+      );
+   }
+
+   return (
+      <ColComponent responsive={responsive}>
+         <div
+            ref={containerRef}
+            style={{ position: "relative", marginBottom: "20px" }}>
+            <label
+               style={{
+                  position: "absolute",
+                  left: "12px",
+                  top: isActive ? "-9px" : "14px",
+                  fontSize: isActive ? "11px" : theme.typography.fontSize.base,
+                  fontWeight: isActive ? 600 : 400,
+                  color: isActive
+                     ? error
+                        ? theme.colors.status.error
+                        : isFocused
+                          ? theme.colors.primary.DEFAULT
+                          : theme.colors.text.secondary
+                     : theme.colors.text.placeholder,
+                  background: theme.colors.background.card,
+                  padding: "0 4px",
+                  transition: theme.transitions.DEFAULT,
+                  zIndex: 2,
+                  pointerEvents: "none",
+               }}>
+               {label}
+               {required && (
+                  <span style={{ color: theme.colors.status.error }}>*</span>
+               )}
+            </label>
+
+            <div
+               onClick={toggleOpen}
+               style={{
+                  display: "flex",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "6px",
+                  minHeight: "56px",
+                  border: `1.5px solid ${
+                     error
+                        ? theme.colors.border.error
+                        : isFocused
+                          ? theme.colors.border.focus
+                          : theme.colors.border.DEFAULT
+                  }`,
+                  borderRadius: theme.radius.md,
+                  background: theme.colors.background.card,
+                  boxShadow: isFocused
+                     ? theme.colors.feedback.primaryGlow
+                     : "none",
+                  transition: theme.transitions.DEFAULT,
+                  padding: "16px 12px 8px",
+                  cursor: "pointer",
+               }}>
+               {value.map((v) => {
+                  const opt = options.find((o) => o.value === v);
+                  if (!opt) return null;
+                  return (
+                     <div
+                        key={v}
+                        style={{
+                           display: "inline-flex",
+                           alignItems: "center",
+                           gap: "6px",
+                           backgroundColor: theme.colors.feedback.primaryLight,
+                           borderRadius: "6px",
+                           padding: "2px 6px",
+                           fontSize: theme.typography.fontSize.sm,
+                           color: theme.colors.primary.DEFAULT,
+                        }}>
+                        <span>{opt.label}</span>
+                        <button
+                           type="button"
+                           onClick={(e) => removeChip(v, e)}
+                           style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              fontSize: "14px",
+                              color: theme.colors.primary.DEFAULT,
+                              padding: 0,
+                           }}>
+                           ×
+                        </button>
+                     </div>
+                  );
+               })}
+               {value.length === 0 && (
+                  <span
+                     style={{
+                        color: theme.colors.text.placeholder,
+                        fontSize: theme.typography.fontSize.base,
+                     }}>
+                     {placeholder}
+                  </span>
+               )}
+               <div style={{ flex: 1 }} />
+            </div>
+
+            <div
+               style={{
+                  position: "absolute",
+                  right: 8,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  display: "flex",
+                  gap: 4,
+               }}>
+               {(onRefresh || onAdd) && (
+                  <div
+                     style={{
+                        width: "1px",
+                        height: "20px",
+                        background: theme.colors.border.DEFAULT,
+                     }}
+                  />
+               )}
+               {onRefresh && (
+                  <button
+                     type="button"
+                     onClick={handleRefresh}
+                     disabled={isRefreshing}
+                     style={actionButtonStyle}>
+                     {isRefreshing ? (
+                        <div
+                           style={{
+                              width: 13,
+                              height: 13,
+                              border: `2px solid ${theme.colors.border.DEFAULT}`,
+                              borderTopColor: theme.colors.primary.DEFAULT,
+                              borderRadius: "50%",
+                              animation: "spin 0.7s linear infinite",
+                           }}
+                        />
+                     ) : (
+                        <svg
+                           width={14}
+                           height={14}
+                           viewBox="0 0 24 24"
+                           fill="none"
+                           stroke="currentColor">
+                           <path d="M1 4v6h6M23 20v-6h-6M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15" />
+                        </svg>
+                     )}
+                  </button>
+               )}
+               {onAdd && (
+                  <button
+                     type="button"
+                     onClick={handleAdd}
+                     style={actionButtonStyle}>
+                     <svg
+                        width={15}
+                        height={15}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                     </svg>
+                  </button>
+               )}
+               {loading && (
+                  <div
+                     style={{
+                        width: 16,
+                        height: 16,
+                        border: `2px solid ${theme.colors.border.DEFAULT}`,
+                        borderTopColor: theme.colors.primary.DEFAULT,
+                        borderRadius: "50%",
+                        animation: "spin 0.7s linear infinite",
+                        margin: "0 8px",
+                     }}
+                  />
+               )}
+            </div>
+
+            <FieldError error={error} />
+         </div>
+
+         {isOpen &&
+            createPortal(
+               <div
+                  ref={dropdownRef}
+                  style={{
+                     position: "absolute",
+                     top: dropdownPosition.top,
+                     left: dropdownPosition.left,
+                     width: dropdownPosition.width,
+                     background: theme.colors.background.card,
+                     border: `1.5px solid ${theme.colors.border.DEFAULT}`,
+                     borderRadius: theme.radius.md,
+                     boxShadow: theme.shadows.dropdown,
+                     zIndex: theme.zIndex.portal,
+                     maxHeight: dropdownPosition.maxHeight,
+                     overflow: "auto",
+                  }}>
+                  <div
+                     style={{
+                        padding: "8px",
+                        borderBottom: `1px solid ${theme.colors.border.DEFAULT}`,
+                     }}>
+                     <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Buscar..."
+                        style={{
+                           width: "100%",
+                           padding: "8px",
+                           border: `1px solid ${theme.colors.border.DEFAULT}`,
+                           borderRadius: theme.radius.md,
+                           outline: "none",
+                           fontSize: "13px",
+                        }}
+                     />
+                  </div>
+                  <div style={{ padding: "4px" }}>
+                     {filteredOptions.length === 0 ? (
+                        <div
+                           style={{
+                              padding: "12px",
+                              textAlign: "center",
+                              color: theme.colors.text.disabled,
+                           }}>
+                           Sin opciones
+                        </div>
+                     ) : (
+                        filteredOptions.map((opt) => (
+                           <div
+                              key={opt.value}
+                              onClick={(e) => {
+                                 e.stopPropagation();
+                                 toggleValue(opt.value);
+                              }}
+                              style={{
+                                 display: "flex",
+                                 alignItems: "center",
+                                 gap: "10px",
+                                 padding: "8px 12px",
+                                 cursor: "pointer",
+                                 borderRadius: theme.radius.md,
+                                 transition: "background 0.1s",
+                              }}
+                              onMouseEnter={(e) =>
+                                 (e.currentTarget.style.background =
+                                    theme.colors.feedback.primaryLight)
+                              }
+                              onMouseLeave={(e) =>
+                                 (e.currentTarget.style.background =
+                                    "transparent")
+                              }>
+                              <input
+                                 type="checkbox"
+                                 style={{
+                                    accentColor: theme.colors.primary[100],
+                                 }}
+                                 checked={value.includes(opt.value)}
+                                 onChange={() => {}}
+                                 onClick={(e) => e.stopPropagation()}
+                              />
+                              <span style={{ fontSize: "13.5px" }}>
+                                 {opt.label}
+                              </span>
+                           </div>
+                        ))
+                     )}
+                  </div>
+                  <div
+                     style={{
+                        padding: "8px",
+                        borderTop: `1px solid ${theme.colors.border.DEFAULT}`,
+                        textAlign: "right",
+                     }}>
+                     <button
+                        onClick={closeDropdown}
+                        style={{
+                           padding: "4px 12px",
+                           background: theme.colors.primary.DEFAULT,
+                           color: "white",
+                           border: "none",
+                           borderRadius: theme.radius.md,
+                           cursor: "pointer",
+                        }}>
+                        Cerrar
+                     </button>
+                  </div>
+               </div>,
+               document.body,
+            )}
+         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      </ColComponent>
+   );
+}
+
+// ------------------------------------------------------------------
+// NOTA: FormikReactSelect (con react-select) se puede eliminar
+// ya que no se usa en el código original; si se necesita,
+// se puede adaptar de forma similar usando theme.
+// ------------------------------------------------------------------
+
+interface FormikDatePickerProps {
+   name: string;
+   label: string;
+   /** @default "date" */
+   type?: "date" | "datetime-local" | "time" | "month" | "week";
+   min?: string;
+   max?: string;
+   disabled?: boolean;
+   readOnly?: boolean;
+   required?: boolean;
+   onChange?: (value: string, formik: FormikCtx) => void;
+   onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
+   responsive?: ResponsiveProps;
+   padding?: boolean;
+}
+
+export function FormikDatePicker(props: FormikDatePickerProps) {
+   const {
+      name,
+      label,
+      type = "date",
+      min,
+      max,
+      disabled = false,
+      readOnly = false,
+      required = false,
+      onChange,
+      onBlur,
+      responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
+      padding = true,
+   } = props;
+
+   const formik = useFormikContext<Record<string, any>>();
+   const [isFocused, setIsFocused] = useState(false);
+   const datePickerRef = useRef<DatePicker>(null);
+   const inputRef = useRef<HTMLInputElement>(null);
+
+   const rawValue = formik.values?.[name] ?? "";
+   const error =
+      formik.touched[name] && formik.errors[name]
+         ? String(formik.errors[name])
+         : null;
+
+   const selectedDate = rawValue ? new Date(rawValue) : null;
+
+   const handleChange = (date: Date | null) => {
+      const value = date ? date.toISOString().split("T")[0] : "";
+      formik.setFieldValue(name, value);
+      onChange?.(value, formik);
+   };
+
+   const handleBlur = () => {
+      setIsFocused(false);
+      formik.setFieldTouched(name, true);
+      onBlur?.({} as React.FocusEvent<HTMLInputElement>);
+   };
+
+   // ✅ Abre el calendario y enfoca el input al hacer clic en cualquier parte del contenedor
+   const handleContainerClick = () => {
+      if (disabled) return;
+      // Abre el calendario
+      if (datePickerRef.current) {
+         datePickerRef.current.setOpen(true);
+      }
+      // Enfoca el input
+      if (inputRef.current) {
+         inputRef.current.focus();
+      }
+   };
+
+   const showTimeSelectOnly = type === "time";
+   const showMonthYearPicker = type === "month";
+   const showWeekPicker = type === "week";
+
+   const customStyles = `
+    .react-datepicker-wrapper {
+      width: 100%;
+    }
+    .react-datepicker {
+      font-family: inherit;
+      border-radius: ${theme.radius.md};
+      border: 1px solid ${theme.colors.border.DEFAULT};
+      box-shadow: ${theme.shadows.dropdown};
+      background: ${theme.colors.background.card};
+    }
+    .react-datepicker__header {
+      background: ${theme.colors.feedback.primaryLight};
+      border-bottom: 1px solid ${theme.colors.border.DEFAULT};
+    }
+    .react-datepicker__current-month,
+    .react-datepicker-time__header,
+    .react-datepicker-year-header {
+      color: ${theme.colors.text.primary};
+      font-weight: 600;
+    }
+    .react-datepicker__day-name,
+    .react-datepicker__day,
+    .react-datepicker__time-name {
+      color: ${theme.colors.text.primary};
+    }
+    .react-datepicker__day:hover,
+    .react-datepicker__month-text:hover,
+    .react-datepicker__quarter-text:hover,
+    .react-datepicker__year-text:hover {
+      background: ${theme.colors.feedback.primaryLight};
+    }
+    .react-datepicker__day--selected,
+    .react-datepicker__day--in-selecting-range,
+    .react-datepicker__day--in-range,
+    .react-datepicker__month-text--selected,
+    .react-datepicker__month-text--in-selecting-range,
+    .react-datepicker__month-text--in-range,
+    .react-datepicker__quarter-text--selected,
+    .react-datepicker__quarter-text--in-selecting-range,
+    .react-datepicker__quarter-text--in-range,
+    .react-datepicker__year-text--selected,
+    .react-datepicker__year-text--in-selecting-range,
+    .react-datepicker__year-text--in-range {
+      background: ${theme.colors.primary.DEFAULT};
+      color: white;
+    }
+    .react-datepicker__day--keyboard-selected,
+    .react-datepicker__month-text--keyboard-selected,
+    .react-datepicker__quarter-text--keyboard-selected,
+    .react-datepicker__year-text--keyboard-selected {
+      background: ${theme.colors.primary[200]};
+      color: white;
+    }
+    .react-datepicker__day--disabled,
+    .react-datepicker__month-text--disabled,
+    .react-datepicker__quarter-text--disabled,
+    .react-datepicker__year-text--disabled {
+      color: ${theme.colors.text.disabled};
+    }
+    .react-datepicker__close-icon::after {
+      background: ${theme.colors.primary.DEFAULT};
+    }
+    .react-datepicker__day--outside-month {
+      color: ${theme.colors.text.disabled};
+    }
+  `;
+
+   if (disabled) {
+      return (
+         <ColComponent responsive={responsive} autoPadding={padding}>
+            <div style={{ position: "relative", marginBottom: "24px" }}>
+               <label
+                  style={{
+                     position: "absolute",
+                     left: "14px",
+                     top: "-10px",
+                     fontSize: "11px",
+                     fontWeight: 600,
+                     color: theme.colors.text.disabled,
+                     background: theme.colors.background.surface,
+                     padding: "0 6px",
+                     letterSpacing: "0.5px",
+                     textTransform: "uppercase",
+                     zIndex: 2,
+                     borderRadius: "4px",
+                  }}>
+                  {label}
+               </label>
+               <div
+                  style={{
+                     border: `1px solid ${theme.colors.border.DEFAULT}`,
+                     borderRadius: theme.radius.lg,
+                     background: theme.colors.background.surface,
+                     padding: "14px 16px",
+                     minHeight: "52px",
+                     opacity: 0.7,
+                  }}>
+                  <span
+                     style={{
+                        fontSize: theme.typography.fontSize.base,
+                        color: theme.colors.text.secondary,
+                     }}>
+                     {rawValue || "—"}
+                  </span>
+               </div>
+               <FieldError error={error} />
+            </div>
+         </ColComponent>
+      );
+   }
+
+   return (
+      <ColComponent responsive={responsive} autoPadding={padding}>
+         <style>{customStyles}</style>
+         <div style={{ position: "relative", marginBottom: "24px" }}>
+            <label
+               htmlFor={name}
+               style={{
+                  position: "absolute",
+                  left: "14px",
+                  top: "-10px",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  color: error
+                     ? theme.colors.status.error
+                     : isFocused
+                       ? theme.colors.primary.DEFAULT
+                       : theme.colors.text.secondary,
+                  background: theme.colors.background.card,
+                  padding: "0 6px",
+                  pointerEvents: "none",
+                  letterSpacing: "0.5px",
+                  textTransform: "uppercase",
+                  transition: "all 0.2s ease",
+                  zIndex: 2,
+                  borderRadius: "4px",
+               }}>
+               {label}
+               {required && (
+                  <span
+                     style={{
+                        color: theme.colors.status.error,
+                        marginLeft: 3,
+                     }}>
+                     *
+                  </span>
+               )}
+            </label>
+
+            <div
+               onClick={handleContainerClick}
+               style={{
+                  display: "flex",
+                  alignItems: "center",
+                  border: `1.5px solid ${
+                     error
+                        ? theme.colors.border.error
+                        : isFocused
+                          ? theme.colors.primary.DEFAULT
+                          : theme.colors.border.DEFAULT
+                  }`,
+                  borderRadius: theme.radius.lg,
+                  background: theme.colors.background.card,
+                  boxShadow: isFocused
+                     ? error
+                        ? `0 0 0 3px ${theme.colors.status.error}20`
+                        : `0 0 0 3px ${theme.colors.primary.DEFAULT}20`
+                     : "0 1px 2px rgba(0,0,0,0.02)",
+                  transition: "all 0.2s ease",
+                  cursor: "pointer",
+               }}>
+               <DatePicker
+                  ref={datePickerRef}
+                  selected={selectedDate}
+                  onChange={handleChange}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={handleBlur}
+                  disabled={disabled}
+                  readOnly={readOnly}
+                  placeholderText="Seleccione una fecha"
+                  locale={es}
+                  showTimeSelect={type === "time" || type === "datetime-local"}
+                  showTimeSelectOnly={type === "time"}
+                  timeFormat="HH:mm"
+                  dateFormat={
+                     type === "time"
+                        ? "HH:mm"
+                        : type === "month"
+                          ? "MM/yyyy"
+                          : type === "week"
+                            ? "dd/MM/yyyy"
+                            : "dd/MM/yyyy"
+                  }
+                  showMonthYearPicker={type === "month"}
+                  showWeekPicker={type === "week"}
+                  minDate={min ? new Date(min) : undefined}
+                  maxDate={max ? new Date(max) : undefined}
+                  customInput={
+                     <input
+                        ref={inputRef}
+                        style={{
+                           flex: 1,
+                           padding: "16px 12px 12px 16px",
+                           background: "transparent",
+                           border: "none",
+                           outline: "none",
+                           fontSize: theme.typography.fontSize.base,
+                           color: theme.colors.text.primary,
+                           fontFamily: "inherit",
+                           cursor: "pointer",
+                        }}
+                     />
+                  }
+               />
+               <span
+                  style={{
+                     marginRight: 16,
+                     color: isFocused
+                        ? theme.colors.primary.DEFAULT
+                        : theme.colors.text.placeholder,
+                     pointerEvents: "none",
+                     display: "flex",
+                     alignItems: "center",
+                     transition: "color 0.2s ease",
+                  }}>
+                  <svg
+                     width={18}
+                     height={18}
+                     viewBox="0 0 24 24"
+                     fill="none"
+                     stroke="currentColor"
+                     strokeWidth={1.8}
+                     strokeLinecap="round">
+                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                     <line x1="16" y1="2" x2="16" y2="6" />
+                     <line x1="8" y1="2" x2="8" y2="6" />
+                     <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+               </span>
+            </div>
+
+            <FieldError error={error} />
+         </div>
+      </ColComponent>
+   );
+}
+
+// ──────────────────────────────────────────────────────────────
+// 2. FORMIK DATE RANGE
+//    Dos DatePickers (desde / hasta) en una sola caja visual
+// ──────────────────────────────────────────────────────────────
+interface FormikDateRangeProps {
+   nameFrom: string;
+   nameTo: string;
+   labelFrom?: string;
+   labelTo?: string;
+   min?: string;
+   max?: string;
+   disabled?: boolean;
+   required?: boolean;
+   label?: string; // etiqueta general del grupo
+   onChange?: (from: string, to: string, formik: FormikCtx) => void;
+   responsive?: ResponsiveProps;
+   padding?: boolean;
+}
+
+export function FormikDateRange(props: FormikDateRangeProps) {
+   const {
+      nameFrom,
+      nameTo,
+      labelFrom = "Desde",
+      labelTo = "Hasta",
+      min,
+      max,
+      disabled = false,
+      required = false,
+      label,
+      onChange,
+      responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
+      padding = true,
+   } = props;
+
+   const formik = useFormikContext<Record<string, any>>();
+   const [focusedField, setFocusedField] = useState<"from" | "to" | null>(null);
+
+   // Refs para controlar los DatePickers y los inputs internos
+   const fromDatePickerRef = useRef<DatePicker>(null);
+   const toDatePickerRef = useRef<DatePicker>(null);
+   const fromInputRef = useRef<HTMLInputElement>(null);
+   const toInputRef = useRef<HTMLInputElement>(null);
+
+   const fromValue = formik.values?.[nameFrom] ?? "";
+   const toValue = formik.values?.[nameTo] ?? "";
+
+   const fromDate = fromValue ? new Date(fromValue) : null;
+   const toDate = toValue ? new Date(toValue) : null;
+
+   const errorFrom =
+      formik.touched[nameFrom] && formik.errors[nameFrom]
+         ? String(formik.errors[nameFrom])
+         : null;
+   const errorTo =
+      formik.touched[nameTo] && formik.errors[nameTo]
+         ? String(formik.errors[nameTo])
+         : null;
+
+   const error = errorFrom || errorTo;
+   const isFocused = focusedField !== null;
+
+   const handleFromChange = (date: Date | null) => {
+      const value = date ? date.toISOString().split("T")[0] : "";
+      formik.setFieldValue(nameFrom, value);
+      onChange?.(value, toValue, formik);
+   };
+
+   const handleToChange = (date: Date | null) => {
+      const value = date ? date.toISOString().split("T")[0] : "";
+      formik.setFieldValue(nameTo, value);
+      onChange?.(fromValue, value, formik);
+   };
+
+   // Abrir calendario y enfocar input del campo "desde"
+   const handleFromContainerClick = () => {
+      if (disabled) return;
+      fromDatePickerRef.current?.setOpen(true);
+      fromInputRef.current?.focus();
+   };
+
+   // Abrir calendario y enfocar input del campo "hasta"
+   const handleToContainerClick = () => {
+      if (disabled) return;
+      toDatePickerRef.current?.setOpen(true);
+      toInputRef.current?.focus();
+   };
+
+   const customStyles = `
+    .react-datepicker-wrapper {
+      width: 100%;
+    }
+    .react-datepicker {
+      font-family: inherit;
+      border-radius: ${theme.radius.md};
+      border: 1px solid ${theme.colors.border.DEFAULT};
+      box-shadow: ${theme.shadows.dropdown};
+      background: ${theme.colors.background.card};
+    }
+    .react-datepicker__header {
+      background: ${theme.colors.feedback.primaryLight};
+      border-bottom: 1px solid ${theme.colors.border.DEFAULT};
+    }
+    .react-datepicker__current-month,
+    .react-datepicker-time__header,
+    .react-datepicker-year-header {
+      color: ${theme.colors.text.primary};
+      font-weight: 600;
+    }
+    .react-datepicker__day-name,
+    .react-datepicker__day,
+    .react-datepicker__time-name {
+      color: ${theme.colors.text.primary};
+    }
+    .react-datepicker__day:hover {
+      background: ${theme.colors.feedback.primaryLight};
+    }
+    .react-datepicker__day--selected,
+    .react-datepicker__day--in-range {
+      background: ${theme.colors.primary.DEFAULT};
+      color: white;
+    }
+    .react-datepicker__day--keyboard-selected {
+      background: ${theme.colors.primary[200]};
+      color: white;
+    }
+    .react-datepicker__day--disabled {
+      color: ${theme.colors.text.disabled};
+    }
+  `;
+
+   return (
+      <ColComponent responsive={responsive} autoPadding={padding}>
+         <style>{customStyles}</style>
+         <div style={{ position: "relative", marginBottom: "24px" }}>
+            {label && (
+               <label
+                  style={{
+                     position: "absolute",
+                     left: "14px",
+                     top: "-10px",
+                     fontSize: "11px",
+                     fontWeight: 600,
+                     color: error
+                        ? theme.colors.status.error
+                        : isFocused
+                          ? theme.colors.primary.DEFAULT
+                          : theme.colors.text.secondary,
+                     background: theme.colors.background.card,
+                     padding: "0 6px",
+                     letterSpacing: "0.5px",
+                     textTransform: "uppercase",
+                     zIndex: 2,
+                     borderRadius: "4px",
+                  }}>
+                  {label}
+                  {required && (
+                     <span
+                        style={{
+                           color: theme.colors.status.error,
+                           marginLeft: 3,
+                        }}>
+                        *
+                     </span>
+                  )}
+               </label>
+            )}
+
+            <div
+               style={{
+                  display: "flex",
+                  alignItems: "stretch",
+                  border: `1.5px solid ${
+                     error
+                        ? theme.colors.border.error
+                        : isFocused
+                          ? theme.colors.primary.DEFAULT
+                          : theme.colors.border.DEFAULT
+                  }`,
+                  borderRadius: theme.radius.lg,
+                  background: theme.colors.background.card,
+                  boxShadow: isFocused
+                     ? error
+                        ? `0 0 0 3px ${theme.colors.status.error}20`
+                        : `0 0 0 3px ${theme.colors.primary.DEFAULT}20`
+                     : "0 1px 2px rgba(0,0,0,0.02)",
+                  transition: "all 0.2s ease",
+                  overflow: "hidden",
+               }}>
+               {/* FROM - contenedor clickeable */}
+               <div
+                  onClick={handleFromContainerClick}
+                  style={{
+                     flex: 1,
+                     display: "flex",
+                     flexDirection: "column",
+                     padding: "12px 14px 10px",
+                     transition: "background 0.2s",
+                     background:
+                        focusedField === "from"
+                           ? `${theme.colors.primary.DEFAULT}08`
+                           : "transparent",
+                     cursor: "pointer",
+                  }}>
+                  <span
+                     style={{
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        color:
+                           focusedField === "from"
+                              ? theme.colors.primary.DEFAULT
+                              : theme.colors.text.disabled,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.8px",
+                        marginBottom: "4px",
+                     }}>
+                     {labelFrom}
+                  </span>
+                  <div
+                     style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                     <DatePicker
+                        ref={fromDatePickerRef}
+                        selected={fromDate}
+                        onChange={handleFromChange}
+                        onFocus={() => setFocusedField("from")}
+                        onBlur={() => {
+                           setFocusedField(null);
+                           formik.setFieldTouched(nameFrom, true);
+                        }}
+                        disabled={disabled}
+                        placeholderText="Seleccione fecha"
+                        locale={es}
+                        dateFormat="dd/MM/yyyy"
+                        minDate={min ? new Date(min) : undefined}
+                        maxDate={toDate || (max ? new Date(max) : undefined)}
+                        customInput={
+                           <input
+                              ref={fromInputRef}
+                              style={{
+                                 flex: 1,
+                                 border: "none",
+                                 outline: "none",
+                                 background: "transparent",
+                                 fontSize: theme.typography.fontSize.base,
+                                 color: theme.colors.text.primary,
+                                 fontFamily: "inherit",
+                                 padding: "4px 0",
+                                 cursor: "pointer",
+                              }}
+                           />
+                        }
+                     />
+                  </div>
+               </div>
+
+               {/* Divisor - no clickeable */}
+               <div
+                  style={{
+                     display: "flex",
+                     alignItems: "center",
+                     padding: "0 8px",
+                     color: theme.colors.border.DEFAULT,
+                     pointerEvents: "none",
+                  }}>
+                  <svg
+                     width={18}
+                     height={18}
+                     viewBox="0 0 24 24"
+                     fill="none"
+                     stroke="currentColor"
+                     strokeWidth={1.8}>
+                     <line x1="5" y1="12" x2="19" y2="12" />
+                     <polyline points="12 5 19 12 12 19" />
+                  </svg>
+               </div>
+
+               {/* TO - contenedor clickeable */}
+               <div
+                  onClick={handleToContainerClick}
+                  style={{
+                     flex: 1,
+                     display: "flex",
+                     flexDirection: "column",
+                     padding: "12px 14px 10px",
+                     transition: "background 0.2s",
+                     background:
+                        focusedField === "to"
+                           ? `${theme.colors.primary.DEFAULT}08`
+                           : "transparent",
+                     cursor: "pointer",
+                  }}>
+                  <span
+                     style={{
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        color:
+                           focusedField === "to"
+                              ? theme.colors.primary.DEFAULT
+                              : theme.colors.text.disabled,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.8px",
+                        marginBottom: "4px",
+                     }}>
+                     {labelTo}
+                  </span>
+                  <div
+                     style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                     <DatePicker
+                        ref={toDatePickerRef}
+                        selected={toDate}
+                        onChange={handleToChange}
+                        onFocus={() => setFocusedField("to")}
+                        onBlur={() => {
+                           setFocusedField(null);
+                           formik.setFieldTouched(nameTo, true);
+                        }}
+                        disabled={disabled}
+                        placeholderText="Seleccione fecha"
+                        locale={es}
+                        dateFormat="dd/MM/yyyy"
+                        minDate={fromDate || (min ? new Date(min) : undefined)}
+                        maxDate={max ? new Date(max) : undefined}
+                        customInput={
+                           <input
+                              ref={toInputRef}
+                              style={{
+                                 flex: 1,
+                                 border: "none",
+                                 outline: "none",
+                                 background: "transparent",
+                                 fontSize: theme.typography.fontSize.base,
+                                 color: theme.colors.text.primary,
+                                 fontFamily: "inherit",
+                                 padding: "4px 0",
+                                 cursor: "pointer",
+                              }}
+                           />
+                        }
+                     />
+                  </div>
+               </div>
+            </div>
+
+            <FieldError error={error} />
+         </div>
+      </ColComponent>
+   );
+}
+
+// ──────────────────────────────────────────────────────────────
+// 3. FORMIK NUMBER DIRECT
+//    Input numérico padre: tipado directo + botones ± opcionales
+//    prefix/suffix, decimales, rangos, autoformat
+// ──────────────────────────────────────────────────────────────
+interface FormikNumberDirectProps {
+   name: string;
+   label: string;
+   min?: number;
+   max?: number;
+   step?: number;
+   /** Cantidad de decimales a mostrar (undefined = entero) */
+   decimals?: number;
+   /** Prefijo visual, e.g. "$" */
+   prefix?: string;
+   /** Sufijo visual, e.g. "kg", "%" */
+   suffix?: string;
+   /** Muestra los botones +/- al costado del input */
+   showStepper?: boolean;
+   disabled?: boolean;
+   required?: boolean;
+   placeholder?: string;
+   onChange?: (value: number | null, formik: FormikCtx) => void;
+   responsive?: ResponsiveProps;
+   padding?: boolean;
+}
+
+export function FormikNumberDirect(props: FormikNumberDirectProps) {
+   const {
+      name,
+      label,
+      min,
+      max,
+      step = 1,
+      decimals,
+      prefix,
+      suffix,
+      showStepper = false,
+      disabled = false,
+      required = false,
+      placeholder = "",
+      onChange,
+      responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
+      padding = true,
+   } = props;
+
+   const formik = useFormikContext<Record<string, any>>();
+   const [isFocused, setIsFocused] = useState(false);
+   const inputRef = useRef<HTMLInputElement>(null);
+
+   const storedValue = formik.values?.[name];
+   const error =
+      formik.touched[name] && formik.errors[name]
+         ? String(formik.errors[name])
+         : null;
+
+   const clampValue = useCallback(
+      (n: number): number => {
+         let v = n;
+         if (min !== undefined) v = Math.max(min, v);
+         if (max !== undefined) v = Math.min(max, v);
+         return v;
+      },
+      [min, max],
+   );
+
+   const handleValueChange = (values: { floatValue: number | undefined }) => {
+      let newValue = values.floatValue ?? null;
+      if (newValue !== null && !isNaN(newValue)) {
+         newValue = clampValue(newValue);
+      }
+      formik.setFieldValue(name, newValue);
+      onChange?.(newValue, formik);
+      formik.setFieldTouched(name, true);
+   };
+
+   const stepValue = (direction: 1 | -1) => {
+      const current =
+         storedValue === null || storedValue === undefined
+            ? 0
+            : Number(storedValue);
+      const next = clampValue(current + direction * step);
+      formik.setFieldValue(name, next);
+      onChange?.(next, formik);
+      formik.setFieldTouched(name, true);
+   };
+
+   const hasValue =
+      storedValue !== null && storedValue !== undefined && storedValue !== "";
+   const isActive = hasValue || isFocused;
+
+   if (disabled) {
+      const displayValue =
+         storedValue !== null && storedValue !== undefined && storedValue !== ""
+            ? decimals !== undefined
+               ? Number(storedValue).toFixed(decimals)
+               : String(storedValue)
+            : "—";
+      return (
+         <ColComponent responsive={responsive} autoPadding={padding}>
+            <div style={{ position: "relative", marginBottom: "20px" }}>
+               <label
+                  style={{
+                     position: "absolute",
+                     left: "12px",
+                     top: "-9px",
+                     fontSize: "11px",
+                     fontWeight: 600,
+                     color: theme.colors.text.disabled,
+                     background: theme.colors.background.surface,
+                     padding: "0 4px",
+                     letterSpacing: "0.04em",
+                     textTransform: "uppercase",
+                     zIndex: 2,
+                  }}>
+                  {label}
+               </label>
+               <div
+                  style={{
+                     border: `1.5px solid ${theme.colors.border.DEFAULT}`,
+                     borderRadius: theme.radius.md,
+                     background: theme.colors.background.surface,
+                     padding: "13px 12px",
+                     minHeight: "50px",
+                     display: "flex",
+                     alignItems: "center",
+                     gap: 4,
+                  }}>
+                  {prefix && (
+                     <span
+                        style={{
+                           color: theme.colors.text.disabled,
+                           fontSize: theme.typography.fontSize.sm,
+                        }}>
+                        {prefix}
+                     </span>
+                  )}
+                  <span
+                     style={{
+                        fontSize: theme.typography.fontSize.base,
+                        color: theme.colors.text.secondary,
+                     }}>
+                     {displayValue}
+                  </span>
+                  {suffix && (
+                     <span
+                        style={{
+                           color: theme.colors.text.disabled,
+                           fontSize: theme.typography.fontSize.sm,
+                        }}>
+                        {suffix}
+                     </span>
+                  )}
+               </div>
+               <FieldError error={error} />
+            </div>
+         </ColComponent>
+      );
+   }
+
+   return (
+      <ColComponent responsive={responsive} autoPadding={padding}>
+         <div style={{ position: "relative", marginBottom: "20px" }}>
+            {/* Floating label */}
+            <label
+               htmlFor={name}
+               style={{
+                  position: "absolute",
+                  left: prefix ? "32px" : "12px",
+                  top: isActive ? "-9px" : "14px",
+                  fontSize: isActive ? "11px" : theme.typography.fontSize.base,
+                  fontWeight: isActive ? 600 : 400,
+                  color: isActive
+                     ? error
+                        ? theme.colors.status.error
+                        : isFocused
+                          ? theme.colors.primary.DEFAULT
+                          : theme.colors.text.secondary
+                     : theme.colors.text.placeholder,
+                  background: isActive
+                     ? theme.colors.background.card
+                     : "transparent",
+                  padding: "0 4px",
+                  pointerEvents: "none",
+                  transition: theme.transitions.DEFAULT,
+                  letterSpacing: isActive ? "0.04em" : "0",
+                  textTransform: isActive ? "uppercase" : "none",
+                  zIndex: 2,
+               }}>
+               {label}
+               {required && (
+                  <span
+                     style={{
+                        color: theme.colors.status.error,
+                        marginLeft: 2,
+                     }}>
+                     *
+                  </span>
+               )}
+            </label>
+
+            <div
+               style={{
+                  display: "flex",
+                  alignItems: "center",
+                  border: `1.5px solid ${
+                     error
+                        ? theme.colors.border.error
+                        : isFocused
+                          ? theme.colors.border.focus
+                          : theme.colors.border.DEFAULT
+                  }`,
+                  borderRadius: theme.radius.md,
+                  background: theme.colors.background.card,
+                  boxShadow: isFocused
+                     ? error
+                        ? "0 0 0 3px rgba(220,38,38,0.10)"
+                        : theme.colors.feedback.primaryGlow
+                     : "none",
+                  transition: theme.transitions.DEFAULT,
+                  overflow: "hidden",
+               }}>
+               {/* Stepper - */}
+               {showStepper && (
+                  <button
+                     type="button"
+                     onClick={() => stepValue(-1)}
+                     style={{
+                        width: 36,
+                        height: "100%",
+                        minHeight: 48,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: theme.colors.background.surface,
+                        border: "none",
+                        borderRight: `1px solid ${theme.colors.border.DEFAULT}`,
+                        cursor: "pointer",
+                        color: theme.colors.text.secondary,
+                        flexShrink: 0,
+                        transition: "background 0.1s",
+                     }}
+                     onMouseEnter={(e) =>
+                        (e.currentTarget.style.background =
+                           theme.colors.feedback.primaryLight)
+                     }
+                     onMouseLeave={(e) =>
+                        (e.currentTarget.style.background =
+                           theme.colors.background.surface)
+                     }>
+                     <svg
+                        width={12}
+                        height={12}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                        strokeLinecap="round">
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                     </svg>
+                  </button>
+               )}
+
+               {/* Input numérico con formato - sin customInput */}
+               <NumericFormat
+                  getInputRef={inputRef}
+                  id={name}
+                  value={storedValue ?? ""}
+                  onValueChange={handleValueChange}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => {
+                     setIsFocused(false);
+                     formik.setFieldTouched(name, true);
+                  }}
+                  disabled={disabled}
+                  placeholder={isFocused ? placeholder : ""}
+                  prefix={prefix}
+                  suffix={suffix}
+                  decimalScale={decimals}
+                  fixedDecimalScale={decimals !== undefined}
+                  allowNegative={min === undefined || min < 0}
+                  decimalSeparator="."
+                  thousandSeparator=","
+                  step={step}
+                  min={min}
+                  max={max}
+                  style={{
+                     flex: 1,
+                     padding: `20px 8px 8px ${prefix ? "4px" : showStepper ? "8px" : "12px"}`,
+                     background: "transparent",
+                     border: "none",
+                     outline: "none",
+                     fontSize: theme.typography.fontSize.base,
+                     color: theme.colors.text.primary,
+                     fontFamily: "inherit",
+                     textAlign: showStepper ? "center" : "left",
+                     fontWeight: showStepper ? 600 : 400,
+                     minWidth: 0,
+                  }}
+               />
+
+               {/* Stepper + */}
+               {showStepper && (
+                  <button
+                     type="button"
+                     onClick={() => stepValue(1)}
+                     style={{
+                        width: 36,
+                        height: "100%",
+                        minHeight: 48,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: theme.colors.background.surface,
+                        border: "none",
+                        borderLeft: `1px solid ${theme.colors.border.DEFAULT}`,
+                        cursor: "pointer",
+                        color: theme.colors.text.secondary,
+                        flexShrink: 0,
+                        transition: "background 0.1s",
+                     }}
+                     onMouseEnter={(e) =>
+                        (e.currentTarget.style.background =
+                           theme.colors.feedback.primaryLight)
+                     }
+                     onMouseLeave={(e) =>
+                        (e.currentTarget.style.background =
+                           theme.colors.background.surface)
+                     }>
+                     <svg
+                        width={12}
+                        height={12}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                        strokeLinecap="round">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                     </svg>
+                  </button>
+               )}
+
+               {/* Indicador min/max */}
+               {isFocused && (min !== undefined || max !== undefined) && (
+                  <div
+                     style={{
+                        padding: "0 10px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 1,
+                        alignItems: "flex-end",
+                        flexShrink: 0,
+                     }}>
+                     {max !== undefined && (
+                        <span
+                           style={{
+                              fontSize: "9px",
+                              color: theme.colors.text.disabled,
+                              lineHeight: 1,
+                           }}>
+                           máx {max}
+                        </span>
+                     )}
+                     {min !== undefined && (
+                        <span
+                           style={{
+                              fontSize: "9px",
+                              color: theme.colors.text.disabled,
+                              lineHeight: 1,
+                           }}>
+                           mín {min}
+                        </span>
+                     )}
+                  </div>
+               )}
+            </div>
+
+            <FieldError error={error} />
+         </div>
+      </ColComponent>
+   );
+}
+
+// ──────────────────────────────────────────────────────────────
+// 4. FORMIK SLIDER
+//    Slider con track visual, marks opcionales y valor en tooltip
+// ──────────────────────────────────────────────────────────────
+interface FormikSliderMark {
+   value: number;
+   label: string;
+}
+
+interface FormikSliderProps {
+   name: string;
+   label: string;
+   min?: number;
+   max?: number;
+   step?: number;
+   /** Unidad que aparece junto al valor, e.g. "%" o "km" */
+   unit?: string;
+   /** Muestra el valor actual flotando sobre el thumb */
+   showTooltip?: boolean;
+   /** Marcas en la pista */
+   marks?: FormikSliderMark[];
+   disabled?: boolean;
+   required?: boolean;
+   onChange?: (value: number, formik: FormikCtx) => void;
+   responsive?: ResponsiveProps;
+   padding?: boolean;
+}
+
+export function FormikSlider(props: FormikSliderProps) {
+   const {
+      name,
+      label,
+      min = 0,
+      max = 100,
+      step = 1,
+      unit = "",
+      showTooltip = true,
+      marks,
+      disabled = false,
+      required = false,
+      onChange,
+      responsive = { sm: 12, md: 12, lg: 12, xl: 12, "2xl": 12 },
+      padding = true,
+   } = props;
+
+   const formik = useFormikContext<Record<string, any>>();
+   const [isDragging, setIsDragging] = useState(false);
+   const trackRef = useRef<HTMLDivElement>(null);
+
+   const rawValue = formik.values?.[name];
+   const value =
+      rawValue !== undefined && rawValue !== null ? Number(rawValue) : min;
+   const error =
+      formik.touched[name] && formik.errors[name]
+         ? String(formik.errors[name])
+         : null;
+
+   const percentage = max === min ? 0 : ((value - min) / (max - min)) * 100;
+
+   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newVal = Number(e.target.value);
+      formik.setFieldValue(name, newVal);
+      onChange?.(newVal, formik);
+   };
+
+   const primaryColor = theme.colors.primary.DEFAULT;
+   const primaryLight = theme.colors.feedback.primaryLight;
+
+   return (
+      <ColComponent responsive={responsive} autoPadding={padding}>
+         <div style={{ marginBottom: "28px" }}>
+            <div
+               style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                  marginBottom: "14px",
+               }}>
+               <label
+                  htmlFor={name}
+                  style={{
+                     fontSize: "12px",
+                     fontWeight: 600,
+                     color: error
+                        ? theme.colors.status.error
+                        : isDragging
+                          ? primaryColor
+                          : theme.colors.text.secondary,
+                     letterSpacing: "0.5px",
+                     textTransform: "uppercase",
+                     transition: "color 0.2s",
+                  }}>
+                  {label}
+                  {required && (
+                     <span
+                        style={{
+                           color: theme.colors.status.error,
+                           marginLeft: 3,
+                        }}>
+                        *
+                     </span>
+                  )}
+               </label>
+
+               <div
+                  style={{
+                     display: "flex",
+                     alignItems: "baseline",
+                     gap: "3px",
+                     padding: "4px 12px",
+                     borderRadius: "40px",
+                     background: isDragging ? primaryColor : primaryLight,
+                     transition: "all 0.2s",
+                     boxShadow: isDragging
+                        ? "0 2px 8px rgba(0,0,0,0.1)"
+                        : "none",
+                  }}>
+                  <span
+                     style={{
+                        fontSize: "15px",
+                        fontWeight: 700,
+                        color: isDragging ? "#ffffff" : primaryColor,
+                        transition: "color 0.2s",
+                        fontVariantNumeric: "tabular-nums",
+                     }}>
+                     {value}
+                  </span>
+                  {unit && (
+                     <span
+                        style={{
+                           fontSize: "11px",
+                           fontWeight: 500,
+                           color: isDragging
+                              ? "rgba(255,255,255,0.85)"
+                              : primaryColor,
+                        }}>
+                        {unit}
+                     </span>
+                  )}
+               </div>
+            </div>
+
+            <div style={{ position: "relative", padding: "8px 0" }}>
+               <div
+                  ref={trackRef}
+                  style={{
+                     position: "relative",
+                     height: "6px",
+                     borderRadius: "6px",
+                     background: theme.colors.border.DEFAULT,
+                     margin: "10px 0",
+                  }}>
+                  <div
+                     style={{
+                        position: "absolute",
+                        left: 0,
+                        top: 0,
+                        height: "100%",
+                        width: `${percentage}%`,
+                        borderRadius: "6px",
+                        background: error
+                           ? theme.colors.status.error
+                           : disabled
+                             ? theme.colors.text.disabled
+                             : primaryColor,
+                        transition: isDragging
+                           ? "none"
+                           : "width 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
+                     }}
+                  />
+
+                  {marks?.map((mark) => {
+                     const markPct =
+                        max === min
+                           ? 0
+                           : ((mark.value - min) / (max - min)) * 100;
+                     return (
+                        <div
+                           key={mark.value}
+                           style={{
+                              position: "absolute",
+                              left: `${markPct}%`,
+                              top: "50%",
+                              transform: "translate(-50%, -50%)",
+                              width: "4px",
+                              height: "4px",
+                              borderRadius: "50%",
+                              background:
+                                 mark.value <= value
+                                    ? "#ffffff"
+                                    : theme.colors.text.disabled,
+                              boxShadow: "0 0 0 1px rgba(0,0,0,0.05)",
+                              pointerEvents: "none",
+                           }}
+                        />
+                     );
+                  })}
+               </div>
+
+               <input
+                  id={name}
+                  type="range"
+                  min={min}
+                  max={max}
+                  step={step}
+                  value={value}
+                  disabled={disabled}
+                  onChange={handleChange}
+                  onMouseDown={() => setIsDragging(true)}
+                  onMouseUp={() => {
+                     setIsDragging(false);
+                     formik.setFieldTouched(name, true);
+                  }}
+                  onTouchStart={() => setIsDragging(true)}
+                  onTouchEnd={() => {
+                     setIsDragging(false);
+                     formik.setFieldTouched(name, true);
+                  }}
+                  style={{
+                     position: "absolute",
+                     top: 0,
+                     left: 0,
+                     width: "100%",
+                     height: "100%",
+                     opacity: 0,
+                     cursor: disabled ? "not-allowed" : "pointer",
+                     margin: 0,
+                     padding: 0,
+                     zIndex: 2,
+                  }}
+               />
+
+               <div
+                  style={{
+                     position: "absolute",
+                     top: "50%",
+                     left: `${percentage}%`,
+                     transform: "translate(-50%, -50%)",
+                     width: isDragging ? "22px" : "18px",
+                     height: isDragging ? "22px" : "18px",
+                     borderRadius: "50%",
+                     background: error
+                        ? theme.colors.status.error
+                        : disabled
+                          ? theme.colors.text.disabled
+                          : "#ffffff",
+                     border: `2px solid ${error ? theme.colors.status.error : primaryColor}`,
+                     boxShadow: isDragging
+                        ? `0 0 0 6px ${primaryLight}, 0 4px 12px rgba(0,0,0,0.15)`
+                        : "0 2px 6px rgba(0,0,0,0.1)",
+                     transition: isDragging
+                        ? "width 0.1s, height 0.1s, box-shadow 0.2s"
+                        : "all 0.2s cubic-bezier(0.2, 0.9, 0.4, 1.1)",
+                     pointerEvents: "none",
+                     zIndex: 3,
+                  }}
+               />
+            </div>
+
+            {marks && marks.length > 0 && (
+               <div
+                  style={{
+                     position: "relative",
+                     height: "24px",
+                     marginTop: "6px",
+                  }}>
+                  {marks.map((mark) => {
+                     const markPct =
+                        max === min
+                           ? 0
+                           : ((mark.value - min) / (max - min)) * 100;
+                     return (
+                        <span
+                           key={mark.value}
+                           style={{
+                              position: "absolute",
+                              left: `${markPct}%`,
+                              transform: "translateX(-50%)",
+                              fontSize: "10px",
+                              color:
+                                 mark.value <= value
+                                    ? primaryColor
+                                    : theme.colors.text.disabled,
+                              fontWeight: mark.value === value ? 600 : 400,
+                              whiteSpace: "nowrap",
+                              transition: "color 0.2s",
+                           }}>
+                           {mark.label}
+                        </span>
+                     );
+                  })}
+               </div>
+            )}
+
+            {!marks && (
+               <div
+                  style={{
+                     display: "flex",
+                     justifyContent: "space-between",
+                     marginTop: "6px",
+                  }}>
+                  <span
+                     style={{
+                        fontSize: "10px",
+                        color: theme.colors.text.disabled,
+                     }}>
+                     {min}
+                     {unit}
+                  </span>
+                  <span
+                     style={{
+                        fontSize: "10px",
+                        color: theme.colors.text.disabled,
+                     }}>
+                     {max}
+                     {unit}
+                  </span>
+               </div>
+            )}
+
+            <FieldError error={error} />
          </div>
       </ColComponent>
    );

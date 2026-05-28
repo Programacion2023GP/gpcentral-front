@@ -26,7 +26,6 @@ import {
 } from "react-router-dom";
 import Spinner from "./ui/components/loading/loading";
 import { RiFileList3Line } from "react-icons/ri";
-import { configureGeneric } from "react-zustore";
 import { env } from "./constant";
 
 // Lazy imports para todas las páginas
@@ -48,19 +47,7 @@ const PageEmployees = lazy(
 );
 const PageUsers = lazy(() => import("./ui/pages/catalogues/users/PageUsers"));
 import icons from "./constant/icons";
-
-configureGeneric({
-   baseUrl: env.API_URL,
-   responseMap: {
-      ok: (res) => res?.status == true,
-      data: (res) => res?.result ?? [],
-      total: (res) => res?.result?.length ?? 0,
-   },
-   endpoints: {
-      getAll: (prefix) => `${prefix}`,
-      create: (prefix) => `${prefix}/createOrUpdate`,
-   },
-});
+import useAdministrationsData from "./ui/hooks/administrations/useAdministrationsData";
 
 // Definición de tipos
 interface BaseSidebarItem {
@@ -89,6 +76,10 @@ const MainLayout = () => {
    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
    const location = useLocation();
    const navigate = useNavigate();
+   const contextAdministration = useAdministrationsData();
+   const administrationCurrent = contextAdministration.items.find(
+      (item) => item.active
+   );
 
    useEffect(() => {
       const handler = (e: any) => {
@@ -301,7 +292,19 @@ const MainLayout = () => {
                // authUser={null}
             />
 
-            <main ref={mainRef} className="flex-1 p-6 overflow-auto bg-white">
+            <main
+               ref={mainRef}
+               className="flex-1 p-6 overflow-auto"
+               style={{
+                  backgroundImage: `url(
+                     ${env.API_URL_IMG}/${administrationCurrent?.logo ?? ""})`,
+                  // backgroundAttachment: "fixed",
+                  backgroundSize: "80vh", //cover | en lugar de "80vh" para que cubra bien
+                  backgroundPosition: "center",
+                  backgroundRepeat: "no-repeat",
+                  backgroundBlendMode: "overlay", // o "multiply", "soft-light"
+                  backgroundColor: "rgba(255, 255, 255, 0.8)", // blanco semitransparente
+               }}>
                <Suspense fallback={<Spinner />}>
                   <Outlet />
                </Suspense>

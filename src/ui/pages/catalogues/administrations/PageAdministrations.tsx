@@ -8,8 +8,8 @@ const PageAdministrations = ({}) => {
       <>
          <SuperCrud
             formTitles={{
-               modalTitleAdd: "Agregar Organización",
-               modalTitleUpdate: "Editar Organización",
+               modalTitleAdd: "Agregar Administración",
+               modalTitleUpdate: "Editar Administración",
             }}
             hook={useAdministrationsData()}
             crudConfig={administrationCrudConfig}

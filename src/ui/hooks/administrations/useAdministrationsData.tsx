@@ -1,7 +1,7 @@
 // hooks/useDepartmentsData.ts
 import { useMemo } from "react";
-import { useGenericData, type GenericDataReturn } from "react-zustore";
 import type { AdministrationForm } from "./administrations.model";
+import { GenericDataReturn, useGenericData } from "../../../library/reactztore/hook/usegenericdata";
 
 // ✅ Exportado — necesario para SuperCrud<Administrations> en la page
 
@@ -31,7 +31,7 @@ const useAdministrationsData = (): AdministrationsDataReturn => {
    );
 
    return useGenericData<AdministrationForm>({
-      defaultValues: initialState,
+      initialState: initialState,
       prefix: "administrations",
       autoFetch: true,
       // persistKey: "administration-persist",

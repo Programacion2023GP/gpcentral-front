@@ -1,7 +1,7 @@
 // hooks/useDepartmentsData.ts
 import { useMemo } from "react";
-import { useGenericData, type GenericDataReturn } from "react-zustore";
 import type { DepartmentForm } from "./departaments.model";
+import { GenericDataReturn, useGenericData } from "../../../library/reactztore/hook/usegenericdata";
 
 // ✅ Exportado — necesario para SuperCrud<Departments> en la page
 
@@ -24,7 +24,7 @@ const useDepartmentsData = (): DepartmentsDataReturn => {
    );
 
    return useGenericData<DepartmentForm>({
-      defaultValues: initialState,
+      initialState: initialState,
       prefix: "departments",
       autoFetch: true,
       // persistKey: "departments-persist",

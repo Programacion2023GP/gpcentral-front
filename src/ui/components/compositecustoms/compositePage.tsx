@@ -1,7 +1,9 @@
+// src/components/compositePage.tsx
 import { useState, type ReactNode } from "react";
 import { AiOutlineClose, AiOutlineExpandAlt } from "react-icons/ai";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWindowSize } from "../../../hooks/windossize";
+import { theme } from "../../../config/themes";
 
 type Direction = "izq" | "der" | "modal";
 
@@ -14,6 +16,17 @@ interface PropsCompositePage {
    onClose?: () => void;
    modalTitle?: string;
    fullModal?: boolean;
+   // Nuevas props para personalizar el modal
+   modalHeader?: ReactNode;
+   modalFooter?: ReactNode;
+   modalBodyClassName?: string;
+   hideDefaultHeader?: boolean;
+   hideDefaultFooter?: boolean;
+   onSave?: () => void;
+   onCancel?: () => void;
+   saveButtonText?: string;
+   cancelButtonText?: string;
+   isSaving?: boolean;
 }
 
 const CompositePage: React.FC<PropsCompositePage> = ({
@@ -25,22 +38,28 @@ const CompositePage: React.FC<PropsCompositePage> = ({
    onClose,
    modalTitle,
    fullModal = true,
+   modalHeader,
+   modalFooter,
+   modalBodyClassName = "",
+   hideDefaultHeader = false,
+   hideDefaultFooter = false,
+   onSave,
+   onCancel,
+   saveButtonText = "Guardar",
+   cancelButtonText = "Cancelar",
+   isSaving = false,
 }) => {
    const [isExpanded, setIsExpanded] = useState(true);
    const [isClosing, setIsClosing] = useState(false);
    const { width: windowWidth } = useWindowSize();
 
-   // Determinar tipo de dispositivo
-   const isSmallMobile = windowWidth < 400;
-   const isMediumMobile = windowWidth >= 400 && windowWidth < 768;
-   const isTablet = windowWidth >= 768 && windowWidth < 1024;
-   const isDesktop = windowWidth >= 1024;
    const isMobile = windowWidth < 1024;
+   const isTablet = windowWidth >= 768 && windowWidth < 1024;
 
    const handleClose = () => {
       setIsClosing(true);
       setTimeout(() => {
-         onClose && onClose();
+         onClose?.();
          setIsClosing(false);
          setIsExpanded(false);
       }, 100);
@@ -48,7 +67,6 @@ const CompositePage: React.FC<PropsCompositePage> = ({
 
    const toggleExpand = () => setIsExpanded(!isExpanded);
 
-   // Componente de botón de cerrar optimizado para iOS
    const CloseButton = ({ mobile = false }: { mobile?: boolean }) => {
       if (mobile) {
          return (
@@ -58,19 +76,24 @@ const CompositePage: React.FC<PropsCompositePage> = ({
                   e.stopPropagation();
                   handleClose();
                }}
-               className="fixed z-50 flex items-center justify-center transition-transform bg-white border-2 border-gray-300 rounded-full shadow-xl top-6 right-4 w-14 h-14 active:bg-gray-50 active:scale-95"
+               type="button"
+               className="fixed z-50 flex items-center justify-center transition-all rounded-full shadow-xl top-6 right-4 w-14 h-14 active:scale-95"
                style={{
+                  background: theme.colors.background.card,
+                  border: `2px solid ${theme.colors.border.DEFAULT}`,
                   WebkitTapHighlightColor: "transparent",
                   cursor: "pointer",
                   touchAction: "manipulation",
                   pointerEvents: "auto",
                }}
                aria-label="Cerrar modal">
-               <AiOutlineClose size={24} className="text-gray-800" />
+               <AiOutlineClose
+                  size={24}
+                  style={{ color: theme.colors.text.primary }}
+               />
             </button>
          );
       }
-
       return (
          <button
             onClick={(e) => {
@@ -78,49 +101,111 @@ const CompositePage: React.FC<PropsCompositePage> = ({
                e.stopPropagation();
                handleClose();
             }}
-            className="p-2 text-gray-500 transition-colors rounded-lg hover:text-red-600 hover:bg-red-50"
+            type="button"
+            className="p-2 transition-all rounded-lg hover:cursor-pointer hover:scale-95"
+            style={{ color: theme.colors.text.inverse }}
+            onMouseEnter={(e) =>
+               (e.currentTarget.style.background = "rgba(255,255,255,0.2)")
+            }
+            onMouseLeave={(e) =>
+               (e.currentTarget.style.background = "transparent")
+            }
             title="Cerrar">
             <AiOutlineClose size={18} />
          </button>
       );
    };
 
-   // Renderizar contenido del modal
+   const DefaultFooter = () => (
+      <div
+         className="flex justify-end gap-3 p-4 border-t"
+         style={{
+            borderTopColor: theme.colors.border.DEFAULT,
+            background: theme.colors.background.surface,
+         }}>
+         {onCancel && (
+            <button
+               onClick={onCancel}
+               className="px-4 py-2 text-sm font-medium transition-all rounded-lg hover:cursor-pointer hover:scale-95"
+               style={{
+                  color: theme.colors.text.secondary,
+                  background: theme.colors.background.card,
+                  border: `1px solid ${theme.colors.border.DEFAULT}`,
+               }}
+               onMouseEnter={(e) =>
+                  (e.currentTarget.style.background =
+                     theme.colors.background.surfaceHover)
+               }
+               onMouseLeave={(e) =>
+                  (e.currentTarget.style.background =
+                     theme.colors.background.card)
+               }>
+               {cancelButtonText}
+            </button>
+         )}
+         {onSave && (
+            <button
+               onClick={onSave}
+               disabled={isSaving}
+               className="px-4 py-2 text-sm font-medium text-white transition-all rounded-lg hover:cursor-pointer hover:scale-95"
+               style={{
+                  background: theme.colors.primary.DEFAULT,
+                  opacity: isSaving ? 0.6 : 1,
+                  cursor: isSaving ? "not-allowed" : "pointer",
+               }}
+               onMouseEnter={(e) => {
+                  if (!isSaving)
+                     e.currentTarget.style.background =
+                        theme.colors.primary.dark;
+               }}
+               onMouseLeave={(e) => {
+                  if (!isSaving)
+                     e.currentTarget.style.background =
+                        theme.colors.primary.DEFAULT;
+               }}>
+               {isSaving ? "Guardando..." : saveButtonText}
+            </button>
+         )}
+      </div>
+   );
+
    const renderModalContent = (content?: () => ReactNode) => {
       if (!isOpen || !content) return null;
 
-      // Función para calcular altura del contenido
-      const getContentHeight = () => {
+      const getBodyHeight = () => {
          if (isMobile) return `calc(100vh - 160px)`;
          if (isTablet) return `calc(90vh - 120px)`;
          return isExpanded ? `calc(100vh - 120px)` : `calc(90vh - 120px)`;
       };
 
-      // MOBILE: Modal desde abajo con gestos optimizados para iOS
+      // Mobile
       if (isMobile) {
          return (
             <AnimatePresence>
                {isOpen && (
                   <div className="fixed inset-0 z-[600]">
-                     {/* Backdrop con gesto táctil */}
                      <motion.div
-                        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                        className="absolute inset-0 backdrop-blur-sm"
+                        style={{ background: "rgba(0, 0, 0, 0.5)" }}
                         onClick={handleClose}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                      />
-
-                     {/* Botón de cerrar FIJO - COMPLETAMENTE SEPARADO */}
                      <div className="fixed top-0 left-0 right-0 z-50 pointer-events-none">
                         <div className="pointer-events-auto">
                            <CloseButton mobile />
                         </div>
                      </div>
-
-                     {/* Modal móvil - SIN DRAG en el contenedor principal */}
                      <motion.div
-                        className="absolute bottom-0 left-0 right-0 z-40 bg-white shadow-2xl rounded-t-3xl"
+                        className="absolute bottom-0 left-0 right-0 z-40 flex flex-col overflow-hidden rounded-t-3xl"
+                        style={{
+                           background: theme.colors.background.card,
+                           boxShadow: theme.shadows.dropdown,
+                           height: "100vh",
+                           maxHeight: "100vh",
+                           paddingTop: "env(safe-area-inset-top, 0px)",
+                        }}
                         initial={{ y: "100%" }}
                         animate={{ y: 0 }}
                         exit={{ y: "100%" }}
@@ -129,51 +214,65 @@ const CompositePage: React.FC<PropsCompositePage> = ({
                            damping: 25,
                            stiffness: 300,
                            mass: 0.8,
-                        }}
-                        style={{
-                           height: "100vh",
-                           maxHeight: "100vh",
-                           paddingTop: "env(safe-area-inset-top, 0px)",
                         }}>
-                        {/* Handle para arrastrar - SOLO ESTE DIV es draggable */}
-                        <motion.div
-                           className="flex justify-center pt-6 pb-2 cursor-grab active:cursor-grabbing"
-                           drag="y"
-                           dragConstraints={{ top: 0, bottom: 0 }}
-                           dragElastic={0.2}
-                           onDragEnd={(event, info) => {
-                              if (
-                                 info.offset.y > 100 ||
-                                 info.velocity.y > 500
-                              ) {
-                                 handleClose();
-                              }
-                           }}
-                           style={{
-                              touchAction: "pan-y",
-                              WebkitUserSelect: "none",
-                              userSelect: "none",
-                           }}>
-                           <div className="w-24 h-1.5 bg-gray-300 rounded-full" />
-                        </motion.div>
-
-                        {/* Header móvil */}
-                        <div className="px-6 pb-4 bg-white border-b border-gray-200">
-                           <h2 className="pr-16 mt-2 text-xl font-bold text-gray-900 truncate">
-                              {modalTitle || ""}
-                           </h2>
-                        </div>
-                        {/* Contenido scrollable con safe areas para iOS */}
+                        {!hideDefaultHeader && (
+                           <div
+                              style={{
+                                 background: `linear-gradient(135deg, ${theme.colors.primary.DEFAULT}, ${theme.colors.primary.dark})`,
+                                 borderTopLeftRadius: "24px",
+                                 borderTopRightRadius: "24px",
+                              }}>
+                              <motion.div
+                                 className="flex justify-center pt-6 pb-2 cursor-grab active:cursor-grabbing"
+                                 drag="y"
+                                 dragConstraints={{ top: 0, bottom: 0 }}
+                                 dragElastic={0.2}
+                                 onDragEnd={(_, info) => {
+                                    if (
+                                       info.offset.y > 100 ||
+                                       info.velocity.y > 500
+                                    )
+                                       handleClose();
+                                 }}
+                                 style={{
+                                    touchAction: "pan-y",
+                                    WebkitUserSelect: "none",
+                                    userSelect: "none",
+                                 }}>
+                                 <div
+                                    className="w-24 h-1.5 rounded-full"
+                                    style={{
+                                       background: "rgba(255,255,255,0.5)",
+                                    }}
+                                 />
+                              </motion.div>
+                              <div className="px-6 pt-0 pb-4">
+                                 <h2
+                                    className="pr-16 text-xl font-bold truncate"
+                                    style={{
+                                       color: theme.colors.text.inverse,
+                                    }}>
+                                    {modalTitle || ""}
+                                 </h2>
+                              </div>
+                           </div>
+                        )}
+                        {modalHeader && (
+                           <div className="flex-shrink-0">{modalHeader}</div>
+                        )}
                         <div
-                           className="overflow-y-auto"
+                           className={`flex-1 overflow-y-auto ${modalBodyClassName}`}
                            style={{
-                              height: getContentHeight(),
+                              height: getBodyHeight(),
                               WebkitOverflowScrolling: "touch",
-                              paddingBottom:
-                                 "calc(20px + env(safe-area-inset-bottom, 0px))",
+                              background: theme.colors.background.card,
                            }}>
                            <div className="px-6 py-4 pb-8">{content()}</div>
                         </div>
+                        {!hideDefaultFooter && <DefaultFooter />}
+                        {modalFooter && (
+                           <div className="flex-shrink-0">{modalFooter}</div>
+                        )}
                      </motion.div>
                   </div>
                )}
@@ -181,39 +280,28 @@ const CompositePage: React.FC<PropsCompositePage> = ({
          );
       }
 
-      // TABLET & DESKTOP
+      // Tablet / Desktop
       return (
          <AnimatePresence>
             {isOpen && (
                <div className="fixed inset-0 z-[300]">
-                  {/* Backdrop */}
                   <motion.div
-                     className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                     className="absolute inset-0 backdrop-blur-sm"
+                     style={{ background: "rgba(0, 0, 0, 0.5)" }}
                      onClick={handleClose}
                      initial={{ opacity: 0 }}
                      animate={{ opacity: 1 }}
                      exit={{ opacity: 0 }}
                   />
-
-                  {/* Modal para tablet/desktop */}
                   <motion.div
-                     className={`absolute bottom-0 overflow-hidden bg-white shadow-2xl ${
+                     className={`absolute bottom-0 overflow-hidden flex flex-col ${
                         isTablet
                            ? "rounded-t-3xl left-0 right-0"
-                           : isExpanded
-                             ? "rounded-none inset-0"
-                             : "rounded-none inset-0"
+                           : "rounded-none inset-0"
                      }`}
-                     initial={{ y: "100%" }}
-                     animate={{ y: 0 }}
-                     exit={{ y: "100%" }}
-                     transition={{
-                        type: "spring",
-                        damping: 25,
-                        stiffness: 300,
-                        mass: 0.8,
-                     }}
                      style={{
+                        background: theme.colors.background.card,
+                        boxShadow: theme.shadows.lg,
                         height: isTablet
                            ? "90vh"
                            : isExpanded
@@ -224,56 +312,86 @@ const CompositePage: React.FC<PropsCompositePage> = ({
                            : isExpanded
                              ? "100%"
                              : "100%",
-                        left: isTablet ? 0 : isExpanded ? 0 : 0,
-                        right: isTablet ? 0 : isExpanded ? 0 : 0,
-                        transform: isTablet
-                           ? "none"
-                           : isExpanded
-                             ? "none"
-                             : "none",
+                     }}
+                     initial={{ y: "100%" }}
+                     animate={{ y: 0 }}
+                     exit={{ y: "100%" }}
+                     transition={{
+                        type: "spring",
+                        damping: 25,
+                        stiffness: 300,
+                        mass: 0.8,
                      }}>
-                     {/* Handle para arrastrar - SOLO DRAG AQUÍ */}
-                     <motion.div
-                        className="flex justify-center pt-3 pb-3 cursor-grab active:cursor-grabbing"
-                        drag="y"
-                        dragConstraints={{ top: 0, bottom: 0 }}
-                        dragElastic={0.1}
-                        onDragEnd={(event, info) => {
-                           if (info.offset.y > 150 || info.velocity.y > 600) {
-                              handleClose();
-                           }
-                        }}>
-                        <div className="w-20 h-1.5 bg-gray-300 rounded-full transition-colors hover:bg-gray-400" />
-                     </motion.div>
-
-                     {/* Header */}
-                     <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
-                        <h2 className="text-xl font-bold text-gray-900 truncate">
-                           {modalTitle || ""}
-                        </h2>
-
-                        <div className="flex items-center gap-2">
-                           {!isMobile && (
-                              <button
-                                 onClick={toggleExpand}
-                                 className="p-2 text-gray-500 transition-colors rounded-lg hover:text-blue-600 hover:bg-blue-50"
-                                 title={isExpanded ? "Contraer" : "Expandir"}>
-                                 <AiOutlineExpandAlt
-                                    size={18}
-                                    className={`transition-transform duration-200 ${isExpanded ? "rotate-180" : "rotate-180"}`}
-                                 />
-                              </button>
-                           )}
-                           <CloseButton />
+                     {!hideDefaultHeader && (
+                        <div
+                           style={{
+                              background: `linear-gradient(135deg, ${theme.colors.primary.DEFAULT}, ${theme.colors.primary.dark})`,
+                           }}>
+                           <motion.div
+                              className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing"
+                              drag="y"
+                              dragConstraints={{ top: 0, bottom: 0 }}
+                              dragElastic={0.1}
+                              onDragEnd={(_, info) => {
+                                 if (
+                                    info.offset.y > 150 ||
+                                    info.velocity.y > 600
+                                 )
+                                    handleClose();
+                              }}>
+                              <div
+                                 className="w-20 h-1.5 rounded-full transition-colors"
+                                 style={{ background: "rgba(255,255,255,0.5)" }}
+                                 onMouseEnter={(e) =>
+                                    (e.currentTarget.style.background =
+                                       "rgba(255,255,255,0.8)")
+                                 }
+                                 onMouseLeave={(e) =>
+                                    (e.currentTarget.style.background =
+                                       "rgba(255,255,255,0.5)")
+                                 }
+                              />
+                           </motion.div>
+                           <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-3">
+                              <h2
+                                 className="text-xl font-bold truncate"
+                                 style={{ color: theme.colors.text.inverse }}>
+                                 {modalTitle || ""}
+                              </h2>
+                              <div className="flex items-center gap-2">
+                                 {fullModal && (
+                                    <button
+                                       onClick={toggleExpand}
+                                       className="p-2 transition-colors rounded-lg"
+                                       style={{
+                                          color: theme.colors.text.inverse,
+                                       }}
+                                       title={
+                                          isExpanded ? "Reducir" : "Expandir"
+                                       }>
+                                       <AiOutlineExpandAlt size={18} />
+                                    </button>
+                                 )}
+                                 <CloseButton />
+                              </div>
+                           </div>
                         </div>
-                     </div>
-
-                     {/* Contenido */}
+                     )}
+                     {modalHeader && (
+                        <div className="flex-shrink-0">{modalHeader}</div>
+                     )}
                      <div
-                        className="overflow-y-auto"
-                        style={{ height: getContentHeight() }}>
+                        className={`flex-1 overflow-y-auto ${modalBodyClassName}`}
+                        style={{
+                           height: getBodyHeight(),
+                           background: theme.colors.background.card,
+                        }}>
                         <div className="p-6">{content()}</div>
                      </div>
+                     {!hideDefaultFooter && <DefaultFooter />}
+                     {modalFooter && (
+                        <div className="flex-shrink-0">{modalFooter}</div>
+                     )}
                   </motion.div>
                </div>
             )}
@@ -281,7 +399,7 @@ const CompositePage: React.FC<PropsCompositePage> = ({
       );
    };
 
-   // El resto del componente sin cambios...
+   // Layout de dos columnas (table + form)
    const bothVisible =
       (tableDirection === "izq" || tableDirection === "der") &&
       (formDirection === "izq" || formDirection === "der") &&
@@ -299,33 +417,37 @@ const CompositePage: React.FC<PropsCompositePage> = ({
 
    return (
       <>
-         {/* Layout principal */}
          <div
             className={`flex flex-col ${bothVisible ? "lg:flex-row" : ""} gap-3 sm:gap-4 w-full`}>
-            {/* SECCIÓN IZQUIERDA */}
             {(tableDirection === "izq" || formDirection === "izq") && (
                <div
                   className={`${getLeftWidth()} min-w-0 transition-all duration-300`}>
-                  <div className="overflow-hidden bg-white rounded-lg shadow-sm">
-                     {tableDirection === "izq" && table && table()}
-                     {formDirection === "izq" && form && form()}
+                  <div
+                     className="overflow-hidden rounded-lg shadow-sm"
+                     style={{
+                        background: theme.colors.background.card,
+                        boxShadow: theme.shadows.sm,
+                     }}>
+                     {tableDirection === "izq" && table?.()}
+                     {formDirection === "izq" && form?.()}
                   </div>
                </div>
             )}
-
-            {/* SECCIÓN DERECHA */}
             {(tableDirection === "der" || formDirection === "der") && (
                <div
                   className={`${getRightWidth()} min-w-0 transition-all duration-300`}>
-                  <div className="overflow-hidden bg-white rounded-lg shadow-sm">
-                     {formDirection === "der" && form && form()}
-                     {tableDirection === "der" && table && table()}
+                  <div
+                     className="overflow-hidden rounded-lg shadow-sm"
+                     style={{
+                        background: theme.colors.background.card,
+                        boxShadow: theme.shadows.sm,
+                     }}>
+                     {formDirection === "der" && form?.()}
+                     {tableDirection === "der" && table?.()}
                   </div>
                </div>
             )}
          </div>
-
-         {/* MODALES */}
          {tableDirection === "modal" && renderModalContent(table)}
          {formDirection === "modal" && renderModalContent(form)}
       </>

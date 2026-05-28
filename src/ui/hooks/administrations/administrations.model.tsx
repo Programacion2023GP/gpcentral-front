@@ -1,6 +1,9 @@
 // config/users.crud.ts
 import { ConfigCrud } from "../../../models/genericmodels.model";
 import icons from "../../../constant/icons";
+import { formatDatetime } from "../../../utils/helpers";
+import PhotoZoom from "../../components/images/images";
+import { env } from "../../../constant";
 
 // 1. Interfaz del formulario (lo que se guarda en BD)
 export interface AdministrationForm {
@@ -36,15 +39,9 @@ export const administrationCrudConfig = ConfigCrud<
    AdministrationTableRow
 >()
    .fields({
-      text: [
-         "name",
-         "president_name",
-         "political_party",
-         "primary_color",
-         "secondary_color",
-         "start_date",
-         "end_date",
-      ],
+      text: ["name", "president_name", "political_party"],
+      color: ["primary_color", "secondary_color"],
+      date: ["start_date", "end_date"],
       file: ["logo", "logo_2", "logo_3"],
       toggle: ["active"],
    })
@@ -76,26 +73,6 @@ export const administrationCrudConfig = ConfigCrud<
          validation: ({ yup }) =>
             yup.string().required("Presidente (a) requerido"),
       },
-      start_date: {
-         label: "Fecha de Inicio",
-         placeholder: "Escribe la fecha de inicio",
-         type: "date",
-         responsive: {
-            md: 6,
-         },
-         validation: ({ yup }) =>
-            yup.string().required("Fecha de inicio requerida"),
-      },
-      end_date: {
-         label: "Fecha de fin",
-         placeholder: "Escribe la fecha de fin",
-         type: "date",
-         responsive: {
-            md: 6,
-         },
-         validation: ({ yup }) =>
-            yup.string().required("Fecha de fin requerida"),
-      },
    })
    .file({
       logo: {
@@ -123,7 +100,6 @@ export const administrationCrudConfig = ConfigCrud<
    .color({
       primary_color: {
          label: "Color Primario",
-         placeholder: "Color primario",
          responsive: {
             md: 6,
          },
@@ -140,29 +116,50 @@ export const administrationCrudConfig = ConfigCrud<
             yup.string().required("Color Primario requerido"),
       },
    })
+   .date({
+      start_date: {
+         label: "Fecha de Inicio",
+         placeholder: "Escribe la fecha de inicio",
+         type: "date",
+         responsive: {
+            md: 6,
+         },
+         validation: ({ yup }) =>
+            yup.string().required("Fecha de inicio requerida"),
+      },
+      end_date: {
+         label: "Fecha de fin",
+         placeholder: "Escribe la fecha de fin",
+         type: "date",
+         responsive: {
+            md: 6,
+         },
+         validation: ({ yup }) =>
+            yup.string().required("Fecha de fin requerida"),
+      },
+   })
    .toggle({
       active: {
          label: "Organización Activo",
       },
    })
-   .layout({
-      mode: "box",
-      sections: ["Información General"],
-      fieldsPerSection: {
-         "Información General": [
-            "name",
-            "political_party",
-            "president_name",
-            "logo",
-            "logo_2",
-            "logo_3",
-            "primary_color",
-            "secondary_color",
-            "start_date",
-            "end_date",
-            "active",
-         ],
-      },
+   .layout(
+      "box",
+      "Información General",
+   )({
+      "Información General": [
+         "name",
+         "political_party",
+         "president_name",
+         "logo",
+         "logo_2",
+         "logo_3",
+         "primary_color",
+         "secondary_color",
+         "start_date",
+         "end_date",
+         "active",
+      ],
    })
    .tableHeader({
       title: "Administraciones",
@@ -170,9 +167,40 @@ export const administrationCrudConfig = ConfigCrud<
       icon: <icons.Ri.RiGovernmentFill size={30} />,
    })
    .tableColumns({
+      logo: {
+         label: "Logo Principal",
+         render: (value, _row) => (
+            <div className="flex items-center gap-2">
+               <div className="flex items-center justify-center w-8 h-8 text-sm font-semibold ">
+                  <PhotoZoom
+                     src={`${env.API_URL_IMG}/${value}`}
+                     alt="Logo Principal"
+                     title="Logo Principal de la administración"
+                  />
+               </div>
+               {/* <span className="font-medium text-gray-900">{`${env.API_URL_IMG}/${value}`}</span> */}
+            </div>
+         ),
+      },
       name: {
-         label: "Organización",
+         label: "Administración",
          render: (value, _row) => `${value}`,
+      },
+      political_party: {
+         label: "Partido",
+         render: (value, _row) => `${value}`,
+      },
+      president_name: {
+         label: "Presidente",
+         render: (value, _row) => `${value}`,
+      },
+      start_date: {
+         label: "Fecha Inicio",
+         render: (value, _row) => `${formatDatetime(value, true)}`,
+      },
+      end_date: {
+         label: "Fecha Fin",
+         render: (value, _row) => `${formatDatetime(value, true)}`,
       },
       active: {
          label: "Estado",

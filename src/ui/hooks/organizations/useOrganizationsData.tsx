@@ -1,7 +1,7 @@
 // hooks/useDepartmentsData.ts
 import { useMemo } from "react";
-import { useGenericData, type GenericDataReturn } from "react-zustore";
 import type { OrganizationForm } from "./organizations.model";
+import { GenericDataReturn, useGenericData } from "../../../library/reactztore/hook/usegenericdata";
 
 // ✅ Exportado — necesario para SuperCrud<Organizations> en la page
 
@@ -22,7 +22,7 @@ const useOrganizationsData = (): OrganizationsDataReturn => {
    );
 
    return useGenericData<OrganizationForm>({
-      defaultValues: initialState,
+      initialState: initialState,
       prefix: "organizations",
       autoFetch: true,
       // persistKey: "organization-persist",
