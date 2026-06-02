@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { showToast } from "react-zustore";
+import { showToast } from "../library/reactztore/sweetalert/Sweetalert";
 
 interface AddressData {
    road?: string;
@@ -47,7 +47,7 @@ const cache = {
    location: null as LocationData | null,
    address: new Map<string, { data: AddressData; timestamp: number }>(),
    lastFetch: 0,
-   CACHE_DURATION: 5 * 60 * 1000 // 5 minutos
+   CACHE_DURATION: 5 * 60 * 1000, // 5 minutos
 };
 
 // Rate limiting para Nominatim
@@ -76,91 +76,103 @@ export const useLocation = (options?: PositionOptions): UseLocationReturn => {
       };
    }, []);
 
-   const formatAddress = useCallback((addressData: AddressData | null): string => {
-      if (!addressData) return "";
+   const formatAddress = useCallback(
+      (addressData: AddressData | null): string => {
+         if (!addressData) return "";
 
-      const parts = [
-         addressData.road,
-         addressData.suburb || addressData.neighbourhood,
-         addressData.city || addressData.town || addressData.village || addressData.municipality,
-         addressData.state,
-         addressData.postcode
-      ].filter(Boolean);
+         const parts = [
+            addressData.road,
+            addressData.suburb || addressData.neighbourhood,
+            addressData.city ||
+               addressData.town ||
+               addressData.village ||
+               addressData.municipality,
+            addressData.state,
+            addressData.postcode,
+         ].filter(Boolean);
 
-      return parts.join(", ");
-   }, []);
+         return parts.join(", ");
+      },
+      [],
+   );
 
-   const getAddress = useCallback(async (lat: number, lon: number): Promise<AddressData | null> => {
-      const cacheKey = `${lat.toFixed(4)},${lon.toFixed(4)}`;
-      const now = Date.now();
+   const getAddress = useCallback(
+      async (lat: number, lon: number): Promise<AddressData | null> => {
+         const cacheKey = `${lat.toFixed(4)},${lon.toFixed(4)}`;
+         const now = Date.now();
 
-      // Verificar cache
-      const cached = cache.address.get(cacheKey);
-      if (cached && now - cached.timestamp < cache.CACHE_DURATION) {
-         setAddress(cached.data);
-         return cached.data;
-      }
+         // Verificar cache
+         const cached = cache.address.get(cacheKey);
+         if (cached && now - cached.timestamp < cache.CACHE_DURATION) {
+            setAddress(cached.data);
+            return cached.data;
+         }
 
-      // Rate limiting
-      const timeSinceLastCall = now - lastNominatimCall;
-      if (timeSinceLastCall < NOMINATIM_DELAY) {
-         await wait(NOMINATIM_DELAY - timeSinceLastCall);
-      }
+         // Rate limiting
+         const timeSinceLastCall = now - lastNominatimCall;
+         if (timeSinceLastCall < NOMINATIM_DELAY) {
+            await wait(NOMINATIM_DELAY - timeSinceLastCall);
+         }
 
-      setAddressLoading(true);
-      lastNominatimCall = Date.now();
+         setAddressLoading(true);
+         lastNominatimCall = Date.now();
 
-      try {
-         abortController.current = new AbortController();
+         try {
+            abortController.current = new AbortController();
 
-         console.log("🌍 Consultando dirección...");
+            console.log("🌍 Consultando dirección...");
 
-         // Intentar con Nominatim
-         const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`;
+            // Intentar con Nominatim
+            const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`;
 
-         const response = await fetch(nominatimUrl, {
-            signal: abortController.current.signal,
-            headers: {
-               "Accept-Language": "es",
-               "User-Agent": "LocationApp/1.0"
-            }
-         });
-
-         if (response.ok) {
-            const data = await response.json();
-            const addressData = data.address;
-
-            console.log("✅ Dirección obtenida:", addressData);
-
-            // Guardar en cache
-            cache.address.set(cacheKey, {
-               data: addressData,
-               timestamp: now
+            const response = await fetch(nominatimUrl, {
+               signal: abortController.current.signal,
+               headers: {
+                  "Accept-Language": "es",
+                  "User-Agent": "LocationApp/1.0",
+               },
             });
 
-            setAddress(addressData);
-            setAddressLoading(false);
+            if (response.ok) {
+               const data = await response.json();
+               const addressData = data.address;
 
-            // Guardar en localStorage
-            try {
-               localStorage.setItem("ubicacion", JSON.stringify(addressData));
-            } catch (e) {
-               console.warn("No se pudo guardar en localStorage");
+               console.log("✅ Dirección obtenida:", addressData);
+
+               // Guardar en cache
+               cache.address.set(cacheKey, {
+                  data: addressData,
+                  timestamp: now,
+               });
+
+               setAddress(addressData);
+               setAddressLoading(false);
+
+               // Guardar en localStorage
+               try {
+                  localStorage.setItem(
+                     "ubicacion",
+                     JSON.stringify(addressData),
+                  );
+               } catch (e) {
+                  console.warn("No se pudo guardar en localStorage");
+               }
+
+               return addressData;
             }
 
-            return addressData;
+            throw new Error("No se pudo obtener la dirección");
+         } catch (error: any) {
+            if (error.name !== "AbortError") {
+               console.error("❌ Error obteniendo dirección:", error);
+               showToast("No se pudo obtener la dirección completa", "warning");
+            }
+            setAddressLoading(false);
+            return null;
          }
-
-         throw new Error("No se pudo obtener la dirección");
-      } catch (error: any) {
-         if (error.name !== "AbortError") {
-            console.error("❌ Error obteniendo dirección:", error);
-            showToast("No se pudo obtener la dirección completa", "warning");
-         }
-         setAddressLoading(false);
-         return null;
-      }
-   }, []);
+      },
+      [],
+   );
 
    const forceGetLocation = useCallback(
       async (getAddressData: boolean = false): Promise<LocationData | null> => {
@@ -182,86 +194,97 @@ export const useLocation = (options?: PositionOptions): UseLocationReturn => {
             enableHighAccuracy: true,
             timeout: 30000, // 30 segundos máximo
             maximumAge: 0, // No usar cache
-            ...options
+            ...options,
          };
 
          try {
             // Crear una promesa que maneje getCurrentPosition
-            const locationPromise = new Promise<LocationData>((resolve, reject) => {
-               let completed = false;
+            const locationPromise = new Promise<LocationData>(
+               (resolve, reject) => {
+                  let completed = false;
 
-               const onSuccess = async (position: GeolocationPosition) => {
-                  if (completed) return;
-                  completed = true;
-
-                  const locationData: LocationData = {
-                     lat: position.coords.latitude,
-                     lon: position.coords.longitude,
-                     accuracy: position.coords.accuracy,
-                     timestamp: position.timestamp
-                  };
-
-                  console.log("🎯 Ubicación obtenida forzadamente:", locationData);
-                  showToast("Ubicación obtenida exitosamente", "success");
-
-                  // Actualizar estados
-                  setLocation(locationData);
-                  cache.location = locationData;
-                  cache.lastFetch = Date.now();
-
-                  // Obtener dirección si se solicita
-                  if (getAddressData) {
-                     const addressData = await getAddress(locationData.lat, locationData.lon);
-                     if (addressData) {
-                        locationData.address = addressData;
-                        cache.location = locationData;
-                     }
-                  }
-
-                  resolve(locationData);
-               };
-
-               const onError = (error: GeolocationPositionError) => {
-                  if (completed) return;
-                  completed = true;
-
-                  const errorMessages: Record<number, string> = {
-                     1: "Permiso denegado. Por favor, habilita la ubicación en tu navegador.",
-                     2: "Ubicación no disponible. Verifica tu conexión GPS/WiFi.",
-                     3: "Tiempo de espera agotado. Intenta nuevamente."
-                  };
-
-                  const message = errorMessages[error.code] || "Error al obtener ubicación";
-                  console.error("❌ Error de geolocalización:", message);
-
-                  setError(message);
-                  showToast(message, "error");
-                  reject(new Error(message));
-               };
-
-               // Llamar a getCurrentPosition con manejo de timeout manual
-               const timer = setTimeout(() => {
-                  if (!completed) {
+                  const onSuccess = async (position: GeolocationPosition) => {
+                     if (completed) return;
                      completed = true;
-                     const message = "Timeout: No se pudo obtener la ubicación a tiempo";
+
+                     const locationData: LocationData = {
+                        lat: position.coords.latitude,
+                        lon: position.coords.longitude,
+                        accuracy: position.coords.accuracy,
+                        timestamp: position.timestamp,
+                     };
+
+                     console.log(
+                        "🎯 Ubicación obtenida forzadamente:",
+                        locationData,
+                     );
+                     showToast("Ubicación obtenida exitosamente", "success");
+
+                     // Actualizar estados
+                     setLocation(locationData);
+                     cache.location = locationData;
+                     cache.lastFetch = Date.now();
+
+                     // Obtener dirección si se solicita
+                     if (getAddressData) {
+                        const addressData = await getAddress(
+                           locationData.lat,
+                           locationData.lon,
+                        );
+                        if (addressData) {
+                           locationData.address = addressData;
+                           cache.location = locationData;
+                        }
+                     }
+
+                     resolve(locationData);
+                  };
+
+                  const onError = (error: GeolocationPositionError) => {
+                     if (completed) return;
+                     completed = true;
+
+                     const errorMessages: Record<number, string> = {
+                        1: "Permiso denegado. Por favor, habilita la ubicación en tu navegador.",
+                        2: "Ubicación no disponible. Verifica tu conexión GPS/WiFi.",
+                        3: "Tiempo de espera agotado. Intenta nuevamente.",
+                     };
+
+                     const message =
+                        errorMessages[error.code] ||
+                        "Error al obtener ubicación";
+                     console.error("❌ Error de geolocalización:", message);
+
                      setError(message);
                      showToast(message, "error");
                      reject(new Error(message));
-                  }
-               }, forceOptions.timeout);
+                  };
 
-               navigator.geolocation.getCurrentPosition(
-                  (pos) => {
-                     clearTimeout(timer);
-                     onSuccess(pos);
-                  },
-                  (err) => {
-                     clearTimeout(timer);
-                     onError(err);
-                  },
-                  forceOptions
-               );
-            });
+                  // Llamar a getCurrentPosition con manejo de timeout manual
+                  const timer = setTimeout(() => {
+                     if (!completed) {
+                        completed = true;
+                        const message =
+                           "Timeout: No se pudo obtener la ubicación a tiempo";
+                        setError(message);
+                        showToast(message, "error");
+                        reject(new Error(message));
+                     }
+                  }, forceOptions.timeout);
+
+                  navigator.geolocation.getCurrentPosition(
+                     (pos) => {
+                        clearTimeout(timer);
+                        onSuccess(pos);
+                     },
+                     (err) => {
+                        clearTimeout(timer);
+                        onError(err);
+                     },
+                     forceOptions,
+                  );
+               },
+            );
 
             const locationData = await locationPromise;
             return locationData;
@@ -269,7 +292,10 @@ export const useLocation = (options?: PositionOptions): UseLocationReturn => {
             console.error("Error forzado:", error);
 
             // Intentar métodos alternativos si el principal falla
-            if (error.message.includes("Permiso denegado") || error.message.includes("timeout")) {
+            if (
+               error.message.includes("Permiso denegado") ||
+               error.message.includes("timeout")
+            ) {
                showToast("Usando ubicación aproximada...", "info");
 
                // Método alternativo: usar IP para ubicación aproximada
@@ -281,11 +307,14 @@ export const useLocation = (options?: PositionOptions): UseLocationReturn => {
                         lat: ipData.latitude,
                         lon: ipData.longitude,
                         accuracy: 50000, // Baja precisión (50km)
-                        timestamp: Date.now()
+                        timestamp: Date.now(),
                      };
 
                      setLocation(fallbackLocation);
-                     showToast("Ubicación aproximada obtenida por IP", "warning");
+                     showToast(
+                        "Ubicación aproximada obtenida por IP",
+                        "warning",
+                     );
                      return fallbackLocation;
                   }
                } catch (ipError) {
@@ -299,7 +328,7 @@ export const useLocation = (options?: PositionOptions): UseLocationReturn => {
             isFetching.current = false;
          }
       },
-      [getAddress, options]
+      [getAddress, options],
    );
 
    const getLocation = useCallback(
@@ -332,7 +361,7 @@ export const useLocation = (options?: PositionOptions): UseLocationReturn => {
 
          return result;
       },
-      [forceGetLocation, getAddress]
+      [forceGetLocation, getAddress],
    );
 
    const clearLocation = useCallback(() => {
@@ -354,9 +383,14 @@ export const useLocation = (options?: PositionOptions): UseLocationReturn => {
       clearLocation,
       formattedAddress: formatAddress(address),
       postalCode: address?.postcode || null,
-      city: address?.city || address?.town || address?.village || address?.municipality || null,
+      city:
+         address?.city ||
+         address?.town ||
+         address?.village ||
+         address?.municipality ||
+         null,
       colony: address?.suburb || address?.neighbourhood || null,
       state: address?.state || null,
-      forceGetLocation
+      forceGetLocation,
    };
 };

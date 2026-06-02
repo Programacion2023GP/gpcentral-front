@@ -41,12 +41,21 @@ export interface EmployeeForm {
    created_at?: string | null;
    updated_at?: string | null;
    deleted_at?: string | null;
+
+   employee_id?: number;
+   assignment_id?: number;
+   new_employee_id?: number;
+   new_position_uuid?: string;
 }
 
 // 2. Interfaz para la tabla (datos enriquecidos)
 export interface EmployeeTableRow extends EmployeeForm {
    employee_active: boolean;
+   assignment_id: number | null;
    position_name: string | null;
+   position_start: Date | null;
+   position_end: Date | null;
+   position_active: boolean;
    department_name: string | null;
    organization_id: number | null;
    organization_name: string | null;

@@ -1,11 +1,31 @@
 // hooks/useEmployeesData.ts
 import { useMemo } from "react";
-import type { EmployeeForm } from "./employees.model";
-import { GenericDataReturn, useGenericData } from "../../../library/reactztore/hook/usegenericdata";
+import type { EmployeeForm, EmployeeTableRow } from "./employees.model";
+import {
+   GenericDataReturn,
+   useGenericData,
+} from "../../../library/reactztore/hook/usegenericdata";
 
 // ✅ Exportado — necesario para SuperCrud<Employees> en la page
 
-export type EmployeesDataReturn = GenericDataReturn<EmployeeForm>;
+export type extraStates = {
+   directors: EmployeeTableRow[];
+};
+export type extraStatesMethods = {
+   getDirectors: () => void;
+   changeDirectorAssignment: (
+      assignment_id: number,
+      new_employee_id: number,
+      new_position_uuid: string,
+   ) => void;
+};
+
+export type EmployeesDataReturn = GenericDataReturn<
+   EmployeeForm,
+   extraStatesMethods,
+   {},
+   extraStates
+>;
 
 const useEmployeesData = (): EmployeesDataReturn => {
    const initialState = useMemo<EmployeeForm>(
@@ -43,15 +63,46 @@ const useEmployeesData = (): EmployeesDataReturn => {
          username: "",
          email: "",
          // password: "",
+
+         employee_id: 0,
       }),
       [],
    );
 
-   return useGenericData<EmployeeForm>({
+   return useGenericData<EmployeeForm, extraStatesMethods, {}, extraStates>({
       initialState: initialState,
       prefix: "employees",
       autoFetch: true,
       // persistKey: "employee-persist",
+      extraState: {
+         directors: [],
+      },
+      extension: (set, get) => ({
+         getDirectors: async () => {
+            const data = await get().request({
+               url: `${get().prefix}/directors`,
+               method: "GET",
+            });
+            set({ directors: data as EmployeeTableRow[] });
+         },
+         changeDirectorAssignment: async (
+            assignment_id: number,
+            new_employee_id: number,
+            new_position_uuid: string,
+         ) => {
+            const res: any = await get().request({
+               url: `${get().prefix}/change-director-assignment`,
+               data: {
+                  assignment_id,
+                  new_employee_id,
+                  new_position_uuid,
+                  start_date: new Date(),
+               },
+               method: "POST",
+            });
+            return res;
+         },
+      }),
       hooks: {
          onError: (msg) => console.error("[Employees]", msg),
       },

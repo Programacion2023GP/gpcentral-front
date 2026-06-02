@@ -4,7 +4,7 @@ import {
    useGenericData,
    GenericDataConfig,
    GenericDataReturn,
-} from "./usegenericdata";
+} from "../library/reactztore/hook/usegenericdata";
 import {
    AdvancedCrudConfig,
    AuditLog,
@@ -594,8 +594,7 @@ export const useAdvancedCrud = <
 
          try {
             const response = await fetch(
-               relation.endpoint ||
-                  `${env.API_URL}/${relation.resource}`,
+               relation.endpoint || `${env.API_URL}/${relation.resource}`,
             );
             const data = await response.json();
             setRelationData((prev) => ({

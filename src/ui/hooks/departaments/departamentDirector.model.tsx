@@ -4,49 +4,46 @@ import { ConfigCrud } from "../../../models/genericmodels.model";
 import { formatDatetime } from "../../../utils/helpers";
 import PhotoZoom from "../../components/images/images";
 import useOrganizationsData from "../organizations/useOrganizationsData";
-import icons from "./../../../constant/icons";
+import icons from "../../../constant/icons";
+// import useDepartmentDirectorData from "./useDepartamentsData";
+import useEmployeesData from "../employees/useEmployeesData";
 import useDepartmentDirectorData from "./useDepartamentDirectorData";
-import useDepartmentsData from "./useDepartamentsData";
 
 // 1. Interfaz del formulario (lo que se guarda en BD)
-export interface DepartmentForm {
+export interface DepartmentDirectorForm {
    id: number;
-   uuid: string;
-   organization_id: number | null;
-   code: string | null;
-   name: string | null;
-   seal_image: string | null;
+   employee_id: number;
+   department_uuid: string | null;
+   position_uuid: string | null;
    start_date: Date | null;
    end_date: Date | null;
    active: boolean;
 
-   //  metadata: {
-   //     department_id?: number;
-   //     position?: string;
-   //     hire_date?: string;
-   //  } | null;
    created_at?: string | null;
    updated_at?: string | null;
    deleted_at?: string | null;
 
-   // solo para el Department-Director
+   // solo para el DepartmentDirector-Director
    assignment_id?: number;
    director_employee_id?: number;
    organization_name?: string;
 }
 
 // 2. Interfaz para la tabla (datos enriquecidos)
-export interface DepartmentTableRow extends DepartmentForm {
-   organization_name: string;
+export interface DepartmentDirectorTableRow extends DepartmentDirectorForm {
+   // assignment_id?: number;
+   // organization_name: string;
    organization_code: string;
-   department_uuid: string;
-   director_name: string;
-   employee_id: number;
-   director_employee_id: number;
+
+   // director_employee_id: number;
    director_employee_code: number;
-   position_uuid: string;
-   director_position: string;
-   director_since?: Date;
+   director_avatar: string;
+   director_signature_image: string;
+   director_name: string;
+   position_name: string;
+   assignment_start?: Date;
+   assignment_end?: Date;
+   assignment_active?: boolean;
 }
 
 export interface DepartmentDirector {
@@ -55,43 +52,28 @@ export interface DepartmentDirector {
 
 // 3. Configuración CORREGIDA
 export const departmentCrudConfig = ConfigCrud<
-   DepartmentForm,
-   DepartmentTableRow,
+   DepartmentDirectorForm,
+   DepartmentDirectorTableRow,
    DepartmentDirector
 >()
    .fields({
-      text: ["uuid", "code", "name", "start_date", "end_date"],
-      select: ["organization_id"],
-      file: ["seal_image"],
+      text: ["id", "organization_name", "department_uuid", "position_uuid"],
+      select: ["employee_id"],
+      date: ["start_date", "end_date"],
+      // select: ["organization_id"],
       toggle: ["active"],
    })
    .text({
-      uuid: {
-         label: "UUID",
-         placeholder: "9X9999XX9X9XX9",
-         disabled: true,
+      organization_name: {
+         label: "Organización",
+         placeholder: "Nombre de la organización",
          responsive: {
             md: 4,
          },
          validation: ({ yup }) => yup.string().notRequired(),
       },
-      code: {
-         label: "Código",
-         placeholder: "",
-         responsive: {
-            md: 4,
-         },
-         validation: ({ yup }) => yup.string().required("Código Requerido"),
-      },
-      name: {
-         label: "Departamento",
-         placeholder: "Nombre del departamento",
-         responsive: {
-            md: 4,
-         },
-         validation: ({ yup }) =>
-            yup.string().required("Departamento requerido"),
-      },
+   })
+   .date({
       start_date: {
          label: "Fecha Inicial",
          placeholder: "DD/MM/AAAA",
@@ -113,33 +95,16 @@ export const departmentCrudConfig = ConfigCrud<
       },
    })
    .select({
-      organization_id: {
-         label: "Organización",
+      employee_id: {
+         label: "Director asignado",
          keyId: "id",
          keyLabel: "name",
          // options: [],
-         selectOptionsHook: () => useOrganizationsData().items,
+         selectOptionsHook: () => useEmployeesData().directors,
          responsive: {
             md: 4,
          },
-         validation: ({ yup }) => yup.string().required("Rol requerido"),
-      },
-   })
-   .file({
-      seal_image: {
-         label: "Sello",
-         showPreviews: true,
-         responsive: {
-            md: 6,
-         },
-      },
-   })
-   .toggle({
-      active: {
-         label: "Departamento Activo",
-         responsive: {
-            md: 6,
-         },
+         validation: ({ yup }) => yup.string().required("Director requerido"),
       },
    })
    // .layout({
@@ -151,24 +116,24 @@ export const departmentCrudConfig = ConfigCrud<
    //    },
    // })
    .tableColumns({
-      seal_image: {
-         label: "Sello",
-         render: (value, row) => (
-            <div className="flex items-center justify-center gap-2">
-               <div className="flex items-center justify-center w-8 h-8 text-sm font-semibold ">
-                  <PhotoZoom
-                     src={value}
-                     alt="Sello"
-                     title="Sello del departamento"
-                  />
-               </div>
-               {/* <span className="font-medium text-gray-900">{value}</span> */}
-            </div>
-         ),
-      },
-      uuid: {
-         label: "UUID",
-      },
+      // seal_image: {
+      //    label: "Sello",
+      //    render: (value, row) => (
+      //       <div className="flex items-center justify-center gap-2">
+      //          <div className="flex items-center justify-center w-8 h-8 text-sm font-semibold ">
+      //             <PhotoZoom
+      //                src={value}
+      //                alt="Sello"
+      //                title="Sello del departamento"
+      //             />
+      //          </div>
+      //          {/* <span className="font-medium text-gray-900">{value}</span> */}
+      //       </div>
+      //    ),
+      // },
+      // uuid: {
+      //    label: "UUID",
+      // },
       organization_name: {
          label: "organización",
          render: (value, row) => {
@@ -186,17 +151,17 @@ export const departmentCrudConfig = ConfigCrud<
             );
          },
       },
-      code: {
-         label: "Codigo",
-         render: (value) => (
-            <a
-               href={`mailto:${value}`}
-               className="text-blue-600 hover:text-blue-700">
-               {value}
-            </a>
-         ),
-      },
-      name: {
+      // code: {
+      //    label: "Codigo",
+      //    render: (value) => (
+      //       <a
+      //          href={`mailto:${value}`}
+      //          className="text-blue-600 hover:text-blue-700">
+      //          {value}
+      //       </a>
+      //    ),
+      // },
+      organization_code: {
          label: "Departamento",
          render: (value, _row) => `${value}`,
       },
@@ -285,11 +250,9 @@ export const departmentCrudConfig = ConfigCrud<
                // console.log("🚀 ~ row:", row);
                hooks.useDepartmentDirector.handleChangeItem(row);
                hooks.useDepartmentDirector.toggleModal();
-               hooks.useDepartmentDirector.setField(
-                  "department_uuid",
-                  row.uuid,
+               hooks.useDepartmentDirector.getDirectorsHistory(
+                  row.department_uuid,
                );
-               hooks.useDepartmentDirector.getDirectorsHistory(row.uuid);
             },
             handleOnClick: (row) => console.log(row),
             color: "green",
@@ -304,38 +267,38 @@ export const departmentCrudConfig = ConfigCrud<
          // },
       ],
    })
-   .mobile({
-      enabled: true,
-      activeViews: true,
-      listTile: {
-         title: (row) => row.name,
-         subtitle: (row) => `${row.code} | ${row.name || "Sin org"}`,
-         leading: (row) => (
-            <div className="w-10 h-10 rounded-full bg-[#9B2242] text-white flex items-center justify-center font-bold">
-               {row.name?.charAt(0)?.toUpperCase() || "D"}
-            </div>
-         ),
-         trailing: (row) => (
-            <span
-               className={`w-2.5 h-2.5 rounded-full ${row.active ? "bg-green-500" : "bg-gray-400"}`}
-            />
-         ),
-      },
-      quickFilters: {
-         enabled: true,
-         filters: [
-            { dataField: "name", label: "Nombre", type: "text" },
-            { dataField: "code", label: "Código", type: "text" },
-            {
-               dataField: "active",
-               label: "Estado",
-               type: "select",
-               options: [
-                  { label: "Activo", value: "true" },
-                  { label: "Inactivo", value: "false" },
-               ],
-            },
-         ],
-      },
-   })
+   // .mobile({
+   //    enabled: true,
+   //    activeViews: true,
+   //    listTile: {
+   //       title: (row) => row.name,
+   //       subtitle: (row) => `${row.code} | ${row.name || "Sin org"}`,
+   //       leading: (row) => (
+   //          <div className="w-10 h-10 rounded-full bg-[#9B2242] text-white flex items-center justify-center font-bold">
+   //             {row.name?.charAt(0)?.toUpperCase() || "D"}
+   //          </div>
+   //       ),
+   //       trailing: (row) => (
+   //          <span
+   //             className={`w-2.5 h-2.5 rounded-full ${row.active ? "bg-green-500" : "bg-gray-400"}`}
+   //          />
+   //       ),
+   //    },
+   //    quickFilters: {
+   //       enabled: true,
+   //       filters: [
+   //          { dataField: "name", label: "Nombre", type: "text" },
+   //          { dataField: "code", label: "Código", type: "text" },
+   //          {
+   //             dataField: "active",
+   //             label: "Estado",
+   //             type: "select",
+   //             options: [
+   //                { label: "Activo", value: "true" },
+   //                { label: "Inactivo", value: "false" },
+   //             ],
+   //          },
+   //       ],
+   //    },
+   // })
    .build();

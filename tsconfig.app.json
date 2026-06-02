@@ -22,7 +22,7 @@
     "verbatimModuleSyntax": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "erasableSyntaxOnly": true,
+    "erasableSyntaxOnly": false,
     "noImplicitAny": false,
     "exactOptionalPropertyTypes": false,
     "noFallthroughCasesInSwitch": true
