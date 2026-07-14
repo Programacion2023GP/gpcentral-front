@@ -502,9 +502,10 @@ const PhotoZoom: React.FC<PhotoZoomProps> = ({
               className="fixed inset-0 z-[999]"
               style={{ background: "rgba(0, 0, 0, 0.95)" }}
               initial={{ opacity: 0 }}
-              animate={{ opacity: isFullscreen ? 1 : 0.95 }}
-              exit={{ opacity: 0 }}
-              onClick={hideControls}
+               animate={{ opacity: isFullscreen ? 1 : 0.95 }}
+               exit={{ opacity: 0 }}
+               onClick={hideControls}
+               onMouseMove={showControlsTemporarily}
             >
               {/* Controles superiores */}
               <motion.div

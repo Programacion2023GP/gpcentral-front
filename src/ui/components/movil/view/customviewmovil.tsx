@@ -447,7 +447,7 @@ export interface UsersTable {
   certificate: string;
   role: "admin" | "premium" | "doctor";
   email?: string;
-  phone?: string;
+  cellphone?: string;
 }
 
 export const userMovilView = createConfig<UsersTable>({
@@ -494,8 +494,8 @@ export const userMovilView = createConfig<UsersTable>({
       textColor: theme.colors.text.secondary,
     },
     {
-      key: "phone",
-      label: "Teléfono",
+      key: "cellphone",
+      label: "Celular",
       type: "phone",
       icon: <FiUser className="text-lg" />,
       bgColor: theme.colors.background.surface,
@@ -506,7 +506,7 @@ export const userMovilView = createConfig<UsersTable>({
     {
       title: "Información personal",
       icon: <FiUser />,
-      fields: ["name", "certificate", "role", "email", "phone"],
+      fields: ["name", "certificate", "role", "email", "cellphone"],
       columns: 2,
     },
   ],

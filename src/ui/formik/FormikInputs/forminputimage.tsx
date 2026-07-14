@@ -2,6 +2,7 @@ import { useFormikContext } from "formik";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ColComponent } from "../../components/responsive/Responsive";
+import { env } from "../../../constant";
 
 /* ─────────────────────────────────────────────────────────────────
    DESIGN TOKENS
@@ -442,6 +443,7 @@ const StatusIcon = ({ status }: { status: FileStatus }) => {
 export interface FormikFileInputProps {
    name: string;
    label: string;
+   urlBase?: string;
    preset?: FilePreset | FilePreset[];
    customExtensions?: string[];
    customAccept?: string;
@@ -469,6 +471,7 @@ export interface FormikFileInputProps {
 export const FormikFileInput: React.FC<FormikFileInputProps> = ({
    name,
    label,
+   urlBase = env.API_URL_IMG,
    preset = "all",
    customExtensions,
    customAccept,
@@ -602,6 +605,9 @@ export const FormikFileInput: React.FC<FormikFileInputProps> = ({
    useEffect(() => {
       if (!formik || isInternalUpdate.current) return;
       const currentValue = formik.values?.[name];
+      // console.log("🚀 ~ FormikFileInput ~ currentValue:", currentValue);
+      // if (!["", null, "null", undefined].includes(currentValue))
+      // currentValue = `${urlBase ? `${urlBase}/` : ""}${currentValue}`;
       const newEntries = convertToFileEntries(currentValue);
       const currentKey = JSON.stringify(
          entries.map((e) => ({
@@ -631,6 +637,8 @@ export const FormikFileInput: React.FC<FormikFileInputProps> = ({
       if (!formik) return;
       const initialValue = formik.values?.[name];
       if (initialValue && entries.length === 0) {
+         // initialValue = `${urlBase ? `${urlBase}/` : ""}${initialValue}`;
+         // console.log("🚀 ~ FormikFileInput ~ initialValue:", initialValue);
          setEntries(convertToFileEntries(initialValue));
       }
    }, []);
@@ -1532,6 +1540,7 @@ export const FormikFileInput: React.FC<FormikFileInputProps> = ({
                            }}
                         />
                         <button
+                           type="button"
                            onClick={() => setPreviewModal(null)}
                            style={{
                               position: "absolute",

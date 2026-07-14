@@ -42,7 +42,7 @@ const useEmployeesData = (): EmployeesDataReturn => {
          rfc: "",
          curp: "",
          gender: null,
-         phone: "",
+          cellphone: "",
          avatar: "",
          signature_image: "",
          start_date: "",

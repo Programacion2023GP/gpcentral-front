@@ -36,7 +36,7 @@ export interface UserTableRow extends UserForm {
    full_name_reverse: string | null;
    rfc: string | null;
    curp: string | null;
-   phone: string | null;
+    cellphone: string | null;
    avatar: string | null;
    signature_image: string | null;
    position_uuid: string | null;

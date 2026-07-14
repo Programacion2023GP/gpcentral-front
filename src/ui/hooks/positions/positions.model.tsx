@@ -11,6 +11,8 @@ export interface PositionForm {
    // department_uuid: string | null;
    name: string | null;
    parent_position_uuid: string | null;
+   office_phone: string | null;
+   ext: string | null;
    start_date: Date | string | null;
    end_date: Date | string | null;
    active: boolean;
@@ -31,7 +33,7 @@ export interface PositionTableRow extends PositionForm {}
 // 3. Configuración CORREGIDA
 export const positionCrudConfig = ConfigCrud<PositionForm, PositionTableRow>()
    .fields({
-      text: ["uuid", "name", "start_date"],
+      text: ["uuid", "name", "start_date", "office_phone", "ext"],
       select: ["parent_position_uuid"],
       toggle: ["active"],
    })
@@ -54,6 +56,16 @@ export const positionCrudConfig = ConfigCrud<PositionForm, PositionTableRow>()
          validation: ({ yup }) =>
             yup.string().required("Fecha de inicio requerido"),
       },
+      office_phone: {
+         label: "Teléfono de oficina",
+         placeholder: "Teléfono de oficina",
+         validation: ({ yup }) => yup.string().notRequired(),
+      },
+      ext: {
+         label: "Extensión",
+         placeholder: "Extensión",
+         validation: ({ yup }) => yup.string().notRequired(),
+      },
    })
    .select({
       parent_position_uuid: {
@@ -72,9 +84,11 @@ export const positionCrudConfig = ConfigCrud<PositionForm, PositionTableRow>()
    .layout(
       "box",
       "Información General",
+      "Contacto",
       "Opcional",
    )({
       "Información General": ["uuid", "name", "start_date", "active"],
+      Contacto: ["office_phone", "ext"],
       Opcional: ["parent_position_uuid"],
    })
    .tableHeader({
@@ -99,6 +113,14 @@ export const positionCrudConfig = ConfigCrud<PositionForm, PositionTableRow>()
          label: "Fecha Fin",
          render: (value, _row) => `${formatDatetime(value, false)}`,
          getFilterValue: (value) => `${formatDatetime(value, false)}`,
+      },
+      office_phone: {
+         label: "Teléfono de oficina",
+         render: (value) => <span>{value || "—"}</span>,
+      },
+      ext: {
+         label: "Extensión",
+         render: (value) => <span>{value || "—"}</span>,
       },
       active: {
          label: "Estado",

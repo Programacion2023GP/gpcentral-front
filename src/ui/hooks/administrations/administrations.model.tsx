@@ -173,12 +173,12 @@ export const administrationCrudConfig = ConfigCrud<
             <div className="flex items-center gap-2">
                <div className="flex items-center justify-center w-8 h-8 text-sm font-semibold ">
                   <PhotoZoom
-                     src={`${env.API_URL_IMG}/${value}`}
+                     src={value}
                      alt="Logo Principal"
                      title="Logo Principal de la administración"
                   />
                </div>
-               {/* <span className="font-medium text-gray-900">{`${env.API_URL_IMG}/${value}`}</span> */}
+               {/* <span className="font-medium text-gray-900">{value}</span> */}
             </div>
          ),
       },

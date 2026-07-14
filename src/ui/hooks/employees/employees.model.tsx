@@ -23,7 +23,7 @@ export interface EmployeeForm {
    rfc: string | null;
    curp: string | null;
    gender: "M" | "F" | null;
-   phone: string | null;
+   cellphone: string | null;
    avatar: string | null;
    signature_image: string | null;
    start_date: Date | string | null;
@@ -81,7 +81,7 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
          "mlast_name",
          "rfc",
          "curp",
-         "phone",
+         "cellphone",
          "start_date",
          "end_date",
          "created_at",
@@ -133,7 +133,7 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
          },
          validation: ({ yup }) => yup.string().required("CURP requerido"),
       },
-      phone: {
+      cellphone: {
          label: "Número celular",
          placeholder: "Escribe tu celular a 10 digitos",
          responsive: {
@@ -252,7 +252,7 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
          "rfc",
          "curp",
          "gender",
-         "phone",
+         "cellphone",
          "start_date",
          "end_date",
       ],
@@ -296,12 +296,12 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
             <div className="flex items-center gap-2">
                <div className="flex items-center justify-center w-8 h-8 text-sm font-semibold ">
                   <PhotoZoom
-                     src={`${env.API_URL_IMG}/${value}`}
+                     src={value}
                      alt="Avatar"
                      title="Imagen del empleado"
                   />
                </div>
-               {/* <span className="font-medium text-gray-900">{`${env.API_URL_IMG}/${value}`}</span> */}
+               {/* <span className="font-medium text-gray-900">{value}</span> */}
             </div>
          ),
       },
@@ -311,12 +311,12 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
             <div className="flex items-center gap-2">
                <div className="flex items-center justify-center w-8 h-8 text-sm font-semibold ">
                   <PhotoZoom
-                     src={`${env.API_URL_IMG}/${value}`}
+                     src={value}
                      alt="Firma"
                      title="Firma del empleado"
                   />
                </div>
-               {/* <span className="font-medium text-gray-900">{`${env.API_URL_IMG}/${value}`}</span> */}
+               {/* <span className="font-medium text-gray-900">{value}</span> */}
             </div>
          ),
       },
@@ -339,7 +339,7 @@ export const employeeCrudConfig = ConfigCrud<EmployeeForm, EmployeeTableRow>()
       curp: {
          label: "CURP",
       },
-      phone: {
+      cellphone: {
          label: "Número celular",
          render: (value) => (
             <a

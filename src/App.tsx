@@ -78,7 +78,7 @@ const MainLayout = () => {
    const navigate = useNavigate();
    const contextAdministration = useAdministrationsData();
    const administrationCurrent = contextAdministration.items.find(
-      (item) => item.active
+      (item) => item.active,
    );
 
    useEffect(() => {
@@ -296,8 +296,7 @@ const MainLayout = () => {
                ref={mainRef}
                className="flex-1 p-6 overflow-auto"
                style={{
-                  backgroundImage: `url(
-                     ${env.API_URL_IMG}/${administrationCurrent?.logo ?? ""})`,
+                  backgroundImage: `url(${administrationCurrent?.logo ?? ""})`,
                   // backgroundAttachment: "fixed",
                   backgroundSize: "80vh", //cover | en lugar de "80vh" para que cubra bien
                   backgroundPosition: "center",

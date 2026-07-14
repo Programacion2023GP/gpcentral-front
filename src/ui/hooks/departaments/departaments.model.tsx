@@ -15,6 +15,7 @@ export interface DepartmentForm {
    organization_id: number | null;
    code: string | null;
    name: string | null;
+   logo: string | null;
    seal_image: string | null;
    start_date: Date | null;
    end_date: Date | null;
@@ -40,6 +41,7 @@ export interface DepartmentTableRow extends DepartmentForm {
    organization_name: string;
    organization_code: string;
    department_uuid: string;
+   department_logo: string;
    director_name: string;
    employee_id: number;
    director_employee_id: number;
@@ -62,7 +64,7 @@ export const departmentCrudConfig = ConfigCrud<
    .fields({
       text: ["uuid", "code", "name", "start_date", "end_date"],
       select: ["organization_id"],
-      file: ["seal_image"],
+      file: ["logo", "seal_image"],
       toggle: ["active"],
    })
    .text({
@@ -126,6 +128,13 @@ export const departmentCrudConfig = ConfigCrud<
       },
    })
    .file({
+      logo: {
+         label: "Logo del departamento",
+         showPreviews: true,
+         responsive: {
+            md: 6,
+         },
+      },
       seal_image: {
          label: "Sello",
          showPreviews: true,
@@ -151,6 +160,21 @@ export const departmentCrudConfig = ConfigCrud<
    //    },
    // })
    .tableColumns({
+      department_logo: {
+         label: "Logo",
+         render: (value, row) => (
+            <div className="flex items-center justify-center gap-2">
+               <div className="flex items-center justify-center w-8 h-8 text-sm font-semibold ">
+                  <PhotoZoom
+                     src={value}
+                     alt="Logo"
+                     title="Logo del departamento"
+                  />
+               </div>
+               {/* <span className="font-medium text-gray-900">{`${value}`}</span> */}
+            </div>
+         ),
+      },
       seal_image: {
          label: "Sello",
          render: (value, row) => (
@@ -162,7 +186,7 @@ export const departmentCrudConfig = ConfigCrud<
                      title="Sello del departamento"
                   />
                </div>
-               {/* <span className="font-medium text-gray-900">{value}</span> */}
+               {/* <span className="font-medium text-gray-900">{`${value}`}</span> */}
             </div>
          ),
       },

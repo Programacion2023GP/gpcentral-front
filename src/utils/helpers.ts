@@ -832,6 +832,15 @@ export const includesInArray = <T>(
 };
 
 /**
+ * Verifica que el valor ingresado tenga cualquier tipo de valores para determinar que esta vacio/nulo
+ * @param value valor que se desea evaluar
+ * @returns boolean
+ */
+export const isEmpty = (value: any): boolean => {
+   return ["", "null", null, undefined].includes(value);
+};
+
+/**
  * Convierte una imagen desde una URI a un objeto tipo File (para React Native / Web).
  * @param uri - URI de la imagen.
  * @param fileName - Nombre del archivo.

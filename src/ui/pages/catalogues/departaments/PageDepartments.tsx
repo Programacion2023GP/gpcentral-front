@@ -109,20 +109,14 @@ const PageDepartments = ({}) => {
                         field: "director_avatar",
                         headerName: "Foto",
                         renderField: (value, row) => (
-                           <PhotoZoom
-                              alt={""}
-                              src={`${env.API_URL_IMG}/${value}`}
-                           />
+                           <PhotoZoom alt={""} src={value} />
                         ),
                      },
                      {
                         field: "director_signature_image",
                         headerName: "Firma",
                         renderField: (value, row) => (
-                           <PhotoZoom
-                              alt={""}
-                              src={`${env.API_URL_IMG}/${value}`}
-                           />
+                           <PhotoZoom alt={""} src={value} />
                         ),
                      },
                      {

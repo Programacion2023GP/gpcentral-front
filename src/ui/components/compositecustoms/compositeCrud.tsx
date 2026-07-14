@@ -2491,6 +2491,7 @@ const SuperCrud = <
 
       const TableComponent = () => {
          const handleEdit = (row: TTable) => {
+            console.log("🚀 ~ handleEdit ~ row:", row);
             const formattedRow = prepareForForm(row as unknown as TForm);
             hook.setOpen(true);
             hook.handleChangeItem(formattedRow);
@@ -3189,6 +3190,7 @@ const SuperCrud = <
                            row={row}
                            actionsConfig={crudConfig?.tableActions as any}
                            onEdit={(row) => {
+                              // console.log("🚀 ~ SuperCrud ~ row:", row);
                               const formattedRow = prepareForForm(row);
                               hook.setOpen(true);
                               hook.handleChangeItem(formattedRow);
